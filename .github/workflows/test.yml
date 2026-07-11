@@ -37,4 +37,4 @@ jobs:
         run: npm run test
 
       - name: Run Backend Tests (Rust)
-        run: cargo test
+        run: cd src-tauri && cargo test
