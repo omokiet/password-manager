@@ -3,12 +3,12 @@ import * as os from 'os';
 import * as path from 'path';
 
 // Để chạy E2E, bạn cần build app trước: cargo tauri build
-const appPath = path.join(__dirname, '..', 'src-tauri', 'target', 'release', 'tauri-app.exe');
+const appPath = path.join(process.cwd(), 'src-tauri', 'target', 'release', 'tauri-app.exe');
 
 export const config: Options.Testrunner = {
     runner: 'local',
     specs: [
-        './test/**/*.e2e.ts'
+        './e2e/**/*.e2e.ts'
     ],
     maxInstances: 1,
     capabilities: [{
