@@ -1,18 +1,21 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ShieldAlert, KeyRound, CheckCircle2, Download, Upload, DatabaseBackup } from 'lucide-react';
+import { ShieldAlert, KeyRound, CheckCircle2, Download, DatabaseBackup, Trash2, ArrowLeft, Home } from 'lucide-react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 
 interface Props {
   onLock: () => void;
-  onClose: () => void;
+  onBack: () => void;
+  onHome: () => void;
+  showToast: (msg: string) => void;
 }
 
-export default function SettingsPanel({ onLock, onClose }: Props) {
+export default function SettingsPanel({ onLock, onBack, onHome, showToast }: Props) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const getStrength = (pwd: string) => {
     let score = 0;
@@ -30,7 +33,7 @@ export default function SettingsPanel({ onLock, onClose }: Props) {
     e.preventDefault();
     if (newPassword.length < 8) {
       setStatus('error');
-      setMessage('Mật khẩu mới phải từ 8 ký tự trở lên');
+      setErrorMsg('Mật khẩu mới phải từ 8 ký tự trở lên');
       return;
     }
     
@@ -38,12 +41,12 @@ export default function SettingsPanel({ onLock, onClose }: Props) {
     try {
       await invoke('change_master_password', { oldPassword, newPassword });
       setStatus('success');
-      setMessage('Đổi mật khẩu chủ thành công!');
+      showToast('Đổi mật khẩu chủ thành công!');
       setOldPassword('');
       setNewPassword('');
     } catch (err: any) {
       setStatus('error');
-      setMessage(err.toString());
+      setErrorMsg(err.toString());
     }
   };
 
@@ -51,36 +54,38 @@ export default function SettingsPanel({ onLock, onClose }: Props) {
     setStatus('loading');
     try {
       const data: string = await invoke('export_backup');
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `backup_${new Date().toISOString().split('T')[0]}.vaultbak`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatus('success');
-      setMessage('Đã tải xuống bản sao lưu');
+      const filePath = await save({
+        filters: [{
+          name: 'Vault Backup',
+          extensions: ['vaultbak']
+        }],
+        defaultPath: `backup_${new Date().toISOString().split('T')[0]}.vaultbak`
+      });
+      if (filePath) {
+        await writeTextFile(filePath, data);
+        setStatus('success');
+        showToast(`Đã lưu bản sao lưu thành công tại: ${filePath}`);
+      } else {
+        setStatus('idle');
+      }
     } catch (err: any) {
       setStatus('error');
-      setMessage(err.toString());
+      setErrorMsg(err.toString());
     }
   };
 
-  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setStatus('loading');
-    try {
-      const text = await file.text();
-      await invoke('import_backup', { backupJson: text });
-      // Restore thành công, đóng DB trên server, cần login lại
-      onLock();
-    } catch (err: any) {
-      setStatus('error');
-      setMessage(err.toString());
+  const handleDeleteAll = async () => {
+    const confirmText = prompt('CẢNH BÁO: Hành động này sẽ xóa VĨNH VIỄN toàn bộ mật khẩu. Việc này không thể hoàn tác.\n\nGõ chữ CONFIRM để xác nhận:');
+    if (confirmText === 'CONFIRM') {
+      setStatus('loading');
+      try {
+        await invoke('delete_all_entries');
+        setStatus('success');
+        showToast('Đã xóa toàn bộ mật khẩu!');
+      } catch (err: any) {
+        setStatus('error');
+        setErrorMsg(err.toString());
+      }
     }
   };
 
@@ -95,13 +100,24 @@ export default function SettingsPanel({ onLock, onClose }: Props) {
             Cài đặt
           </h2>
         </div>
-        <button 
-          onClick={onClose}
-          type="button"
-          className="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium transition-colors border border-white/10 active:scale-95 text-white"
-        >
-          Quay lại
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={onBack}
+            type="button"
+            className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/10 active:scale-95 text-white"
+            title="Quay lại"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button 
+            onClick={onHome}
+            type="button"
+            className="w-10 h-10 flex items-center justify-center bg-white text-black hover:bg-zinc-100 rounded-full transition-colors border border-transparent active:scale-95"
+            title="Về Trang chủ"
+          >
+            <Home size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-8">
@@ -118,16 +134,9 @@ export default function SettingsPanel({ onLock, onClose }: Props) {
               </div>
             </div>
 
-            {status === 'success' && (
-              <div className="px-4 py-3 bg-green-500/10 border border-green-500/20 rounded-xl flex items-center gap-3 text-green-400 text-sm">
-                <CheckCircle2 size={16} />
-                {message}
-              </div>
-            )}
-
             {status === 'error' && (
               <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
-                {message}
+                {errorMsg}
               </div>
             )}
 
@@ -202,26 +211,35 @@ export default function SettingsPanel({ onLock, onClose }: Props) {
                 type="button"
                 onClick={handleExportBackup}
                 disabled={status === 'loading'}
-                className="flex-1 px-6 py-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white rounded-2xl transition-all border border-white/10 active:scale-95 flex items-center justify-center gap-3"
+                className="w-full px-6 py-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white rounded-2xl transition-all border border-white/10 active:scale-95 flex items-center justify-center gap-3"
               >
-                <Download size={18} /> Tạo bản sao lưu
+                <Download size={18} /> Chọn nơi lưu & Tạo bản sao lưu
               </button>
-              
+            </div>
+          </div>
+        </div>
+
+        <div className="p-1.5 rounded-[2.5rem] bg-white/[0.02] border border-red-500/10 shadow-2xl mt-8">
+          <div className="bg-[#0a0a0a]/60 backdrop-blur-3xl rounded-[calc(2.5rem-0.375rem)] p-8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] border border-red-500/20 space-y-6">
+            <div className="flex items-center gap-4 pb-4 border-b border-red-500/10">
+              <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h3 className="font-medium text-red-400">Vùng nguy hiểm</h3>
+                <p className="text-xs text-red-500/60 mt-0.5">Xóa vĩnh viễn toàn bộ dữ liệu trong Vault này.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
               <button 
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleDeleteAll}
                 disabled={status === 'loading'}
-                className="flex-1 px-6 py-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white rounded-2xl transition-all border border-white/10 active:scale-95 flex items-center justify-center gap-3"
+                className="w-full px-6 py-4 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 text-red-400 font-medium rounded-2xl transition-all border border-red-500/20 active:scale-95 flex items-center justify-center gap-3"
               >
-                <Upload size={18} /> Khôi phục dữ liệu
+                <Trash2 size={18} /> Xóa toàn bộ mật khẩu
               </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                accept=".vaultbak" 
-                onChange={handleImportBackup} 
-                className="hidden" 
-              />
             </div>
           </div>
         </div>

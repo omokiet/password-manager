@@ -32,8 +32,26 @@ export default function Dashboard({ onLock }: Props) {
   const [showGenerator, setShowGenerator] = useState(false);
   const [toast, setToast] = useState('');
   const [showHistoryIdx, setShowHistoryIdx] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<'vault' | 'settings' | 'health'>('vault');
+  const [viewHistory, setViewHistory] = useState<('vault' | 'settings' | 'health')[]>(['vault']);
+  const viewMode = viewHistory[viewHistory.length - 1];
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const navigateTo = (view: 'vault' | 'settings' | 'health') => {
+    if (viewMode === view) return;
+    if (view === 'vault') {
+      setViewHistory(['vault']);
+    } else {
+      setViewHistory(prev => [...prev, view]);
+    }
+  };
+
+  const goBack = () => {
+    setViewHistory(prev => prev.length > 1 ? prev.slice(0, -1) : ['vault']);
+  };
+
+  const goHome = () => {
+    setViewHistory(['vault']);
+  };
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const loadEntries = async () => {
@@ -155,6 +173,12 @@ export default function Dashboard({ onLock }: Props) {
     const matchSearch = e.title.toLowerCase().includes(search.toLowerCase());
     const matchCategory = selectedCategory ? e.category === selectedCategory : true;
     return matchSearch && matchCategory;
+  }).sort((a, b) => {
+    // is_favorite lên đầu
+    if (a.is_favorite && !b.is_favorite) return -1;
+    if (!a.is_favorite && b.is_favorite) return 1;
+    // sau đó theo thời gian tạo mới nhất
+    return b.created_at - a.created_at;
   });
 
   return (
@@ -212,14 +236,14 @@ export default function Dashboard({ onLock }: Props) {
           </div>
           <div className="flex gap-2">
             <button 
-              onClick={() => setViewMode(viewMode === 'health' ? 'vault' : 'health')}
+              onClick={() => navigateTo('health')}
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors border active:scale-95 ${viewMode === 'health' ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-transparent hover:bg-white/10 text-zinc-400 hover:text-white hover:border-white/10'}`}
-              title="Sức khỏe Mật khẩu"
+              title="Độ mạnh Mật khẩu"
             >
               <Activity size={14} strokeWidth={2} />
             </button>
             <button 
-              onClick={() => setViewMode(viewMode === 'settings' ? 'vault' : 'settings')}
+              onClick={() => navigateTo('settings')}
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors border active:scale-95 ${viewMode === 'settings' ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-transparent hover:bg-white/10 text-zinc-400 hover:text-white hover:border-white/10'}`}
               title="Cài đặt"
             >
@@ -271,7 +295,7 @@ export default function Dashboard({ onLock }: Props) {
           {filtered.map((entry, i) => (
             <div 
               key={entry.id}
-              onClick={() => { setSelectedEntry(entry); setIsEditing(false); setShowHistoryIdx(null); setViewMode('vault'); }}
+              onClick={() => { setSelectedEntry(entry); setIsEditing(false); setShowHistoryIdx(null); goHome(); }}
               className={`px-4 py-3.5 rounded-2xl cursor-pointer transition-all duration-300 flex items-center gap-4 group animate-in fade-in slide-in-from-left-4
                 ${selectedEntry?.id === entry.id && viewMode === 'vault'
                   ? 'bg-white/10 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]' 
@@ -302,7 +326,7 @@ export default function Dashboard({ onLock }: Props) {
 
         <div className="p-6 pt-4 border-t border-white/5 bg-gradient-to-t from-black/50 to-transparent">
           <button 
-            onClick={() => { setSelectedEntry({ ...emptyEntry }); setIsEditing(true); }}
+            onClick={() => { setSelectedEntry({ ...emptyEntry }); setIsEditing(true); goHome(); }}
             className="w-full group relative flex items-center justify-center bg-white text-black font-medium rounded-full py-3.5 text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] hover:bg-zinc-100"
           >
             <span className="transform translate-x-0 group-hover:-translate-x-3 transition-transform duration-500">
@@ -318,9 +342,9 @@ export default function Dashboard({ onLock }: Props) {
       {/* Main Detail Area */}
       <div className="flex-1 flex flex-col relative overflow-y-auto custom-scrollbar bg-black/20">
         {viewMode === 'health' ? (
-          <HealthDashboard entries={entries} onClose={() => setViewMode('vault')} />
+          <HealthDashboard entries={entries} onBack={goBack} onHome={goHome} onEdit={(entry) => { setSelectedEntry(entry); setIsEditing(true); goHome(); }} />
         ) : viewMode === 'settings' ? (
-          <SettingsPanel onLock={onLock} onClose={() => setViewMode('vault')} />
+          <SettingsPanel onLock={onLock} onBack={goBack} onHome={goHome} showToast={showToast} />
         ) : selectedEntry ? (
           <div className="max-w-3xl w-full mx-auto px-10 py-16 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]">
             
@@ -439,6 +463,19 @@ export default function Dashboard({ onLock }: Props) {
                       readOnly={!isEditing}
                       value={selectedEntry.url}
                       onChange={(e) => setSelectedEntry({ ...selectedEntry, url: e.target.value })}
+                      className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors`}
+                    />
+                  </div>
+
+                  {/* Field: Category */}
+                  <div>
+                    <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Danh mục (Tab/Folder)</label>
+                    <input
+                      type="text"
+                      readOnly={!isEditing}
+                      value={selectedEntry.category}
+                      onChange={(e) => setSelectedEntry({ ...selectedEntry, category: e.target.value })}
+                      placeholder="Ví dụ: Game, Công việc, Cá nhân..."
                       className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors`}
                     />
                   </div>
