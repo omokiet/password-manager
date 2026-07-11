@@ -1,0 +1,38 @@
+name: CI Test
+on:
+  push:
+    branches:
+      - staging
+  pull_request:
+    branches:
+      - staging
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      - name: Run Frontend Tests (Vitest)
+        run: npm run test
+
+      - name: Run Backend Tests (Rust)
+        run: cargo test
