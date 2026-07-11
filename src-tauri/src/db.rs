@@ -215,7 +215,8 @@ mod tests {
     use std::fs;
 
     fn get_temp_db_path(name: &str) -> String {
-        let path = format!("./{}", name);
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let path = format!("./{}_{}", uuid, name);
         let _ = fs::remove_file(&path); // Dọn dẹp trước khi test
         path
     }
@@ -261,6 +262,8 @@ mod tests {
             category: "Work".into(),
             created_at: 0,
             updated_at: 0,
+            is_favorite: false,
+            password_history: vec![],
         };
 
         // Add
