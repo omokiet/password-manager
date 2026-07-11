@@ -15,17 +15,19 @@ Một ứng dụng desktop quản lý mật khẩu offline hoàn toàn, được
 - Lưu Trữ An Toàn: File vault (`vault.db`) và salt (`vault.salt`) được lưu ngầm định an toàn trong thư mục `app_data_dir` của hệ điều hành.
 - Xóa Bộ Nhớ (Memory Sanitization): Key mã hóa và các struct nhạy cảm bị xóa hoàn toàn khỏi bộ nhớ RAM bằng thư viện `zeroize` ngay khi không còn sử dụng hoặc khi vault bị khóa.
 
-## Các Tính Năng Cốt Lõi (v1.1)
+## Các Tính Năng Cốt Lõi (v1.1.2)
 - **Quản lý Mật Khẩu (CRUD)**: Lưu trữ, chỉnh sửa, xóa và tạo mật khẩu ngẫu nhiên an toàn.
-- **Phân loại (Category & Favorite)**: Đánh dấu sao mật khẩu quan trọng và phân loại theo nhóm.
+- **Phân loại Tab thông minh (Category & Favorite)**: Gõ "Tên danh mục" lúc tạo mật khẩu, ứng dụng tự động tạo ra một tab phân loại ở Sidebar. Mật khẩu đánh dấu sao (Favorite) luôn được ghim lên đầu.
 - **Lưu Trữ Lịch Sử**: Tự động lưu tối đa 5 lần đổi mật khẩu gần nhất của mỗi mục.
-- **Đổi Mật Khẩu Chủ**: Cơ chế rekey dữ liệu an toàn trên SQLite sử dụng các giao dịch atomic (file temporary).
-- **Sao Lưu & Khôi Phục**: Hỗ trợ xuất (export) toàn bộ DB và Salt dưới dạng mã hóa Base64Hex (định dạng `.vaultbak`) và khôi phục (import) một cách an toàn.
-- **Phân Tích Mật Khẩu**: Chấm điểm Health Score, phát hiện mật khẩu yếu, trùng lặp hoặc đã quá hạn (>90 ngày).
+- **Đổi Mật Khẩu Chủ & Wipe Data**: Cơ chế rekey dữ liệu an toàn trên SQLite. Tích hợp Danger Zone cho phép xóa vĩnh viễn toàn bộ dữ liệu khi cần.
+- **Sao Lưu & Khôi Phục Native**: Khôi phục (Restore) an toàn từ màn hình khóa. Hỗ trợ xuất (Export Backup) lưu trực tiếp ra file `.vaultbak` bằng chính hộp thoại lưu file của hệ điều hành (Native OS Dialog).
+- **Phân Tích Độ Mạnh Mật Khẩu**: Chấm Điểm Độ Mạnh, phát hiện mật khẩu yếu, trùng lặp hoặc đã quá hạn (>90 ngày). Cho phép click trực tiếp vào cảnh báo để chuyển nhanh sang trang sửa mật khẩu.
 - **Tìm Kiếm & Lọc**: Công cụ tìm kiếm tức thời theo tiêu đề hoặc lọc danh sách theo danh mục (Category).
 - **Tự Động Khóa & Xóa Clipboard**: Tự động lock vault sau 5 phút không hoạt động (hoặc khi thu nhỏ). Xóa sạch Clipboard sau 30 giây khi copy mật khẩu.
 - **Tiện Ích Nhanh**: Nhấn `Ctrl+C` (hoặc `Cmd+C`) để copy nhanh mật khẩu của mục đang chọn.
+- **Điều hướng dạng Stack**: Nút Trở Về (Back) và Trang Chủ (Home) mượt mà cho trải nghiệm liền mạch.
 - **Bảo Vệ Đa Luồng**: Chống khởi chạy nhiều phiên bản ứng dụng (Single-instance lock).
+- **CI/CD Tự Động**: Đóng gói tự động ra file `.exe` / `.msi` thông qua GitHub Actions khi tạo Tag mới.
 
 ## Hướng Dẫn Cài Đặt
 
