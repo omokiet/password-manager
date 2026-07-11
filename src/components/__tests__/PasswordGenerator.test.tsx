@@ -62,7 +62,7 @@ describe('PasswordGenerator', () => {
     const passwordInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
     expect(passwordInput.value).toBe('');
     
-    const useButton = screen.getByText('Sử dụng');
+    const useButton = screen.getByRole('button', { name: /sử dụng/i });
     expect(useButton).toBeDisabled();
   });
 });

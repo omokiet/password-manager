@@ -101,7 +101,7 @@ mod tests {
         let key1 = derive_key(password, &salt).unwrap();
         let key2 = derive_key(password, &salt).unwrap();
 
-        assert_eq!(key1.as_ref(), key2.as_ref());
+        assert_eq!(&*key1, &*key2);
         assert_eq!(key1.len(), 32);
     }
 
@@ -111,7 +111,7 @@ mod tests {
         let key1 = derive_key("password123", &salt).unwrap();
         let key2 = derive_key("password124", &salt).unwrap();
 
-        assert_ne!(key1.as_ref(), key2.as_ref());
+        assert_ne!(&*key1, &*key2);
     }
 
     #[test]
