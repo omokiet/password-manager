@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Agent & System
+.project-root/
+.agents/
+skills-lock.json
 # Rust / Tauri
 src-tauri/target/
 *.db
@@ -30,3 +34,4 @@ src-tauri/target/
 *.tmp
 *.vaultbak
 .env
+.agents/*
