@@ -1,12 +1,14 @@
 import { PasswordEntry } from '../types';
-import { Activity, AlertTriangle, Clock, Copy, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertTriangle, Clock, Copy, ShieldAlert, CheckCircle2, ArrowLeft, Home } from 'lucide-react';
 
 interface Props {
   entries: PasswordEntry[];
-  onClose: () => void;
+  onBack: () => void;
+  onHome: () => void;
+  onEdit?: (entry: PasswordEntry) => void;
 }
 
-export default function HealthDashboard({ entries, onClose }: Props) {
+export default function HealthDashboard({ entries, onBack, onHome, onEdit }: Props) {
   const getStrength = (pwd: string) => {
     let score = 0;
     if (pwd.length >= 8) score++;
@@ -41,15 +43,25 @@ export default function HealthDashboard({ entries, onClose }: Props) {
             Health
           </div>
           <h2 className="text-5xl font-medium text-white tracking-tight leading-tight flex items-center gap-4">
-            Sức khỏe Mật khẩu
+            Độ mạnh Mật khẩu
           </h2>
         </div>
-        <button 
-          onClick={onClose}
-          className="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium transition-colors border border-white/10 active:scale-95 text-white"
-        >
-          Quay lại
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/10 active:scale-95 text-white"
+            title="Quay lại"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button 
+            onClick={onHome}
+            className="w-10 h-10 flex items-center justify-center bg-white text-black hover:bg-zinc-100 rounded-full transition-colors border border-transparent active:scale-95"
+            title="Về Trang chủ"
+          >
+            <Home size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -59,7 +71,7 @@ export default function HealthDashboard({ entries, onClose }: Props) {
           </div>
           <div>
             <div className="text-3xl font-medium text-white mb-1">{score}%</div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-semibold">Điểm sức khỏe</div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-semibold">Điểm độ mạnh</div>
           </div>
         </div>
         
@@ -114,9 +126,14 @@ export default function HealthDashboard({ entries, onClose }: Props) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {weakEntries.map(e => (
-                  <span key={e.id} className="px-3 py-1 bg-white/5 rounded-full text-xs text-zinc-300 border border-white/10">
+                  <button 
+                    key={e.id} 
+                    onClick={() => onEdit && onEdit(e)}
+                    className="px-3 py-1 bg-white/5 hover:bg-white/10 active:scale-95 rounded-full text-xs text-zinc-300 border border-white/10 transition-all flex items-center gap-1.5"
+                    title={`Sửa: ${e.username}`}
+                  >
                     {e.title}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -132,9 +149,14 @@ export default function HealthDashboard({ entries, onClose }: Props) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {reusedEntries.map(e => (
-                  <span key={e.id} className="px-3 py-1 bg-white/5 rounded-full text-xs text-zinc-300 border border-white/10">
+                  <button 
+                    key={e.id} 
+                    onClick={() => onEdit && onEdit(e)}
+                    className="px-3 py-1 bg-white/5 hover:bg-white/10 active:scale-95 rounded-full text-xs text-zinc-300 border border-white/10 transition-all flex items-center gap-1.5"
+                    title={`Sửa: ${e.username}`}
+                  >
                     {e.title}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>

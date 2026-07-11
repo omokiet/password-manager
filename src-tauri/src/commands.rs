@@ -48,13 +48,11 @@ pub fn check_vault_exists(app: AppHandle) -> Result<bool> {
 }
 
 #[tauri::command]
-pub fn create_vault(
-    password: &str,
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<()> {
+pub fn create_vault(password: &str, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
     if password.len() < 8 {
-        return Err(AppError::CryptoError("Mật khẩu phải từ 8 ký tự trở lên".into()));
+        return Err(AppError::CryptoError(
+            "Mật khẩu phải từ 8 ký tự trở lên".into(),
+        ));
     }
 
     let path = resolve_vault_path(&app)?;
@@ -80,16 +78,14 @@ pub fn create_vault(
 }
 
 #[tauri::command]
-pub fn unlock_vault(
-    password: &str,
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<()> {
+pub fn unlock_vault(password: &str, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
     let path = resolve_vault_path(&app)?;
     let salt_path = get_salt_path(&path);
 
     if !path.exists() || !salt_path.exists() {
-        return Err(AppError::DatabaseError("Không tìm thấy Vault hoặc file Salt".into()));
+        return Err(AppError::DatabaseError(
+            "Không tìm thấy Vault hoặc file Salt".into(),
+        ));
     }
 
     let salt = fs::read_to_string(&salt_path)
@@ -120,7 +116,9 @@ pub fn change_master_password(
     state: State<'_, AppState>,
 ) -> Result<()> {
     if new_password.len() < 8 {
-        return Err(AppError::CryptoError("Mật khẩu mới phải từ 8 ký tự trở lên".into()));
+        return Err(AppError::CryptoError(
+            "Mật khẩu mới phải từ 8 ký tự trở lên".into(),
+        ));
     }
 
     let path = resolve_vault_path(&app)?;
@@ -150,7 +148,10 @@ pub fn change_master_password(
     let hex_new_key = hex::encode(new_key.as_slice());
     if let Err(e) = conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_new_key)) {
         let _ = fs::remove_file(&temp_salt_path);
-        return Err(AppError::DatabaseError(format!("Lỗi SQLCipher rekey: {}", e)));
+        return Err(AppError::DatabaseError(format!(
+            "Lỗi SQLCipher rekey: {}",
+            e
+        )));
     }
 
     // 5. Atomic rename to finalize
@@ -158,7 +159,10 @@ pub fn change_master_password(
         // Rollback rekey if file operation failed
         let hex_old_key = hex::encode(old_key.as_slice());
         let _ = conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_old_key));
-        return Err(AppError::DatabaseError(format!("Lỗi ghi đè salt mới, đã rollback: {}", e)));
+        return Err(AppError::DatabaseError(format!(
+            "Lỗi ghi đè salt mới, đã rollback: {}",
+            e
+        )));
     }
 
     Ok(())
@@ -168,7 +172,9 @@ pub fn change_master_password(
 // CRUD Commands cho Entries
 // ==========================================
 
-fn get_connection<'a>(state: &'a State<'_, AppState>) -> Result<std::sync::MutexGuard<'a, Option<rusqlite::Connection>>> {
+fn get_connection<'a>(
+    state: &'a State<'_, AppState>,
+) -> Result<std::sync::MutexGuard<'a, Option<rusqlite::Connection>>> {
     let conn = state.db_conn.lock().unwrap();
     if conn.is_none() {
         return Err(AppError::DatabaseError("Vault đang bị khóa".into()));
@@ -177,13 +183,19 @@ fn get_connection<'a>(state: &'a State<'_, AppState>) -> Result<std::sync::Mutex
 }
 
 #[tauri::command]
-pub fn add_entry(entry: crate::models::PasswordEntry, state: State<'_, AppState>) -> Result<crate::models::PasswordEntry> {
+pub fn add_entry(
+    entry: crate::models::PasswordEntry,
+    state: State<'_, AppState>,
+) -> Result<crate::models::PasswordEntry> {
     let conn_guard = get_connection(&state)?;
     crate::db::add_entry(conn_guard.as_ref().unwrap(), entry)
 }
 
 #[tauri::command]
-pub fn update_entry(entry: crate::models::PasswordEntry, state: State<'_, AppState>) -> Result<crate::models::PasswordEntry> {
+pub fn update_entry(
+    entry: crate::models::PasswordEntry,
+    state: State<'_, AppState>,
+) -> Result<crate::models::PasswordEntry> {
     let conn_guard = get_connection(&state)?;
     crate::db::update_entry(conn_guard.as_ref().unwrap(), entry)
 }
@@ -192,6 +204,15 @@ pub fn update_entry(entry: crate::models::PasswordEntry, state: State<'_, AppSta
 pub fn delete_entry(id: &str, state: State<'_, AppState>) -> Result<()> {
     let conn_guard = get_connection(&state)?;
     crate::db::delete_entry(conn_guard.as_ref().unwrap(), id)
+}
+
+#[tauri::command]
+pub fn delete_all_entries(state: State<'_, AppState>) -> Result<()> {
+    let conn_guard = get_connection(&state)?;
+    let conn = conn_guard.as_ref().unwrap();
+    conn.execute("DELETE FROM entries", [])
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi xóa toàn bộ mật khẩu: {}", e)))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -214,24 +235,31 @@ pub fn export_backup(app: AppHandle) -> Result<String> {
     let path = resolve_vault_path(&app)?;
     let salt_path = get_salt_path(&path);
 
-    let db_bytes = fs::read(&path).map_err(|e| AppError::DatabaseError(format!("Lỗi đọc DB: {}", e)))?;
-    let salt_bytes = fs::read(&salt_path).map_err(|e| AppError::DatabaseError(format!("Lỗi đọc Salt: {}", e)))?;
+    let db_bytes =
+        fs::read(&path).map_err(|e| AppError::DatabaseError(format!("Lỗi đọc DB: {}", e)))?;
+    let salt_bytes = fs::read(&salt_path)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi đọc Salt: {}", e)))?;
 
     let backup = BackupData {
         db: hex::encode(db_bytes),
         salt: hex::encode(salt_bytes),
     };
 
-    serde_json::to_string(&backup).map_err(|e| AppError::DatabaseError(format!("Lỗi tạo backup: {}", e)))
+    serde_json::to_string(&backup)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi tạo backup: {}", e)))
 }
 
 #[tauri::command]
-pub fn import_backup(backup_json: String, app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+pub fn import_backup(
+    backup_json: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<()> {
     let backup: BackupData = serde_json::from_str(&backup_json)
         .map_err(|_| AppError::DatabaseError("Dữ liệu backup không hợp lệ".into()))?;
 
-    let db_bytes = hex::decode(&backup.db)
-        .map_err(|_| AppError::DatabaseError("Lỗi giải mã DB".into()))?;
+    let db_bytes =
+        hex::decode(&backup.db).map_err(|_| AppError::DatabaseError("Lỗi giải mã DB".into()))?;
     let salt_bytes = hex::decode(&backup.salt)
         .map_err(|_| AppError::DatabaseError("Lỗi giải mã Salt".into()))?;
 
@@ -332,19 +360,19 @@ mod tests {
     fn test_change_master_password() {
         let path = get_temp_path("test_change_pwd.db");
         let mock_state = MockState(AppState::default());
-        
+
         let old_salt = generate_salt();
         let old_key = derive_key("password123", &old_salt).unwrap();
-        
+
         db_create_vault(&path, old_key.as_ref()).unwrap();
-        
+
         let conn = db_open_vault(&path, old_key.as_ref()).unwrap();
         *mock_state.0.db_conn.lock().unwrap() = Some(conn);
         *mock_state.0.vault_path.lock().unwrap() = Some(PathBuf::from(&path));
-        
+
         // This test requires AppHandle which is hard to mock outside of tauri builder.
         // We will just verify the logic locally if possible, but skip AppHandle specific parts.
-        // Due to resolve_vault_path depending on AppHandle, unit testing `change_master_password` directly 
+        // Due to resolve_vault_path depending on AppHandle, unit testing `change_master_password` directly
         // in cargo test is difficult. We'll skip invoking the command directly and rely on E2E test.
     }
 }

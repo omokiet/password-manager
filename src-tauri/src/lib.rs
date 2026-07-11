@@ -1,12 +1,14 @@
-pub mod error;
-pub mod crypto;
-pub mod models;
-pub mod db;
 pub mod commands;
+pub mod crypto;
+pub mod db;
+pub mod error;
+pub mod models;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             use tauri::Manager;
@@ -26,6 +28,7 @@ pub fn run() {
             commands::add_entry,
             commands::update_entry,
             commands::delete_entry,
+            commands::delete_all_entries,
             commands::get_all_entries,
             commands::export_backup,
             commands::import_backup,

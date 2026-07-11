@@ -5,7 +5,7 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Lỗi mã hóa/giải mã: {0}")]
     CryptoError(String),
-    
+
     #[error("Lỗi cơ sở dữ liệu: {0}")]
     DatabaseError(String),
 

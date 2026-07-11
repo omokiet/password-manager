@@ -45,7 +45,7 @@ pub fn create_vault<P: AsRef<Path>>(path: P, key: &[u8]) -> Result<()> {
 }
 
 /// Mở một Vault đã có bằng key.
-/// Tại sao: Chỉ cung cấp đúng key mới vượt qua được PRAGMA key. 
+/// Tại sao: Chỉ cung cấp đúng key mới vượt qua được PRAGMA key.
 /// Nếu sai key, lệnh đọc đầu tiên sẽ trả về error.
 pub fn open_vault<P: AsRef<Path>>(path: P, key: &[u8]) -> Result<Connection> {
     if !path.as_ref().exists() {
@@ -83,8 +83,14 @@ fn open_connection<P: AsRef<Path>>(path: P, key: &[u8]) -> Result<Connection> {
 
 fn migrate_db(conn: &Connection) -> Result<()> {
     // Bỏ qua lỗi nếu cột đã tồn tại trên DB cũ
-    let _ = conn.execute("ALTER TABLE entries ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0", []);
-    let _ = conn.execute("ALTER TABLE entries ADD COLUMN password_history TEXT NOT NULL DEFAULT '[]'", []);
+    let _ = conn.execute(
+        "ALTER TABLE entries ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE entries ADD COLUMN password_history TEXT NOT NULL DEFAULT '[]'",
+        [],
+    );
     Ok(())
 }
 
@@ -115,12 +121,13 @@ pub fn update_entry(conn: &Connection, mut entry: PasswordEntry) -> Result<Passw
 
     // Lấy thông tin history cũ (Task 6)
     if let Ok((old_password, old_history_str)) = conn.query_row(
-        "SELECT password, password_history FROM entries WHERE id = ?1", 
-        params![entry.id], 
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        "SELECT password, password_history FROM entries WHERE id = ?1",
+        params![entry.id],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     ) {
         if old_password != entry.password {
-            let mut history: Vec<crate::models::PasswordHistoryEntry> = serde_json::from_str(&old_history_str).unwrap_or_default();
+            let mut history: Vec<crate::models::PasswordHistoryEntry> =
+                serde_json::from_str(&old_history_str).unwrap_or_default();
             history.push(crate::models::PasswordHistoryEntry {
                 old_password,
                 changed_at: entry.updated_at,
@@ -157,7 +164,8 @@ pub fn update_entry(conn: &Connection, mut entry: PasswordEntry) -> Result<Passw
 
 /// Xóa một Entry
 pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
-    let rows_affected = conn.execute("DELETE FROM entries WHERE id = ?1", params![id])
+    let rows_affected = conn
+        .execute("DELETE FROM entries WHERE id = ?1", params![id])
         .map_err(|e| AppError::DatabaseError(format!("Lỗi xóa entry: {}", e)))?;
 
     if rows_affected == 0 {
@@ -186,7 +194,8 @@ pub fn get_all_entries(conn: &Connection) -> Result<Vec<PasswordEntry>> {
                 created_at: row.get(7)?,
                 updated_at: row.get(8)?,
                 is_favorite: row.get::<_, i32>(9)? != 0,
-                password_history: serde_json::from_str(&row.get::<_, String>(10)?).unwrap_or_default(),
+                password_history: serde_json::from_str(&row.get::<_, String>(10)?)
+                    .unwrap_or_default(),
             })
         })
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
@@ -257,7 +266,7 @@ mod tests {
         // Add
         let saved_entry = add_entry(&conn, entry).unwrap();
         assert!(!saved_entry.id.is_empty());
-        
+
         // Get
         let all = get_all_entries(&conn).unwrap();
         assert_eq!(all.len(), 1);

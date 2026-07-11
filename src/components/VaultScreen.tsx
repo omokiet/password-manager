@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Lock, Unlock, ArrowRight } from 'lucide-react';
 
@@ -13,6 +13,30 @@ export default function VaultScreen({ onUnlocked }: Props) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setError('');
+    try {
+      const text = await file.text();
+      await invoke('import_backup', { backupJson: text });
+      setIsCreating(false);
+      setPassword('');
+      setConfirmPassword('');
+      setError('Đã khôi phục thành công! Vui lòng đăng nhập bằng mật khẩu cũ của bản sao lưu.');
+    } catch (err: any) {
+      setError(err.toString());
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   useEffect(() => {
     invoke<boolean>('check_vault_exists')
@@ -148,6 +172,27 @@ export default function VaultScreen({ onUnlocked }: Props) {
           >
             {isCreating ? 'Đã có Vault? Mở khóa ngay' : 'Chưa có Vault? Tạo mới'}
           </button>
+          
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <span className="text-[10px] text-zinc-700 uppercase tracking-[0.15em]">hoặc</span>
+          </div>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-[10px] text-zinc-500 hover:text-white transition-colors uppercase tracking-[0.15em] font-medium flex items-center justify-center gap-1.5 mx-auto"
+            >
+              Khôi phục từ bản sao lưu
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              accept=".vaultbak" 
+              onChange={handleImportBackup} 
+              className="hidden" 
+            />
+          </div>
         </div>
 
       </div>
