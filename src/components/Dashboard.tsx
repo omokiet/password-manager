@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { PasswordEntry } from '../types';
-import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity } from 'lucide-react';
+import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity, Upload, X } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
+import { readTextFile } from '@tauri-apps/plugin-fs';
+import { CustomField, CustomFieldType } from '../types';
 import PasswordGenerator from './PasswordGenerator';
 import SettingsPanel from './SettingsPanel';
 import HealthDashboard from './HealthDashboard';
@@ -22,6 +25,7 @@ const emptyEntry: PasswordEntry = {
   updated_at: 0,
   is_favorite: false,
   password_history: [],
+  custom_fields: [],
 };
 
 export default function Dashboard({ onLock }: Props) {
@@ -32,6 +36,8 @@ export default function Dashboard({ onLock }: Props) {
   const [showGenerator, setShowGenerator] = useState(false);
   const [toast, setToast] = useState('');
   const [showHistoryIdx, setShowHistoryIdx] = useState<number | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showCustomPasswords, setShowCustomPasswords] = useState<Record<string, boolean>>({});
   const [viewHistory, setViewHistory] = useState<('vault' | 'settings' | 'health')[]>(['vault']);
   const viewMode = viewHistory[viewHistory.length - 1];
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -168,9 +174,66 @@ export default function Dashboard({ onLock }: Props) {
     setTimeout(() => setToast(''), 3000);
   };
 
+  const handleAddCustomField = (type: CustomFieldType) => {
+    if (!selectedEntry) return;
+    const newField: CustomField = {
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+      label: 'Trường mới',
+      value: '',
+      field_type: type
+    };
+    setSelectedEntry({
+      ...selectedEntry,
+      custom_fields: [...(selectedEntry.custom_fields || []), newField]
+    });
+  };
+
+  const handleUpdateCustomField = (index: number, updates: Partial<CustomField>) => {
+    if (!selectedEntry || !selectedEntry.custom_fields) return;
+    const newFields = [...selectedEntry.custom_fields];
+    newFields[index] = { ...newFields[index], ...updates };
+    setSelectedEntry({ ...selectedEntry, custom_fields: newFields });
+  };
+
+  const handleRemoveCustomField = (index: number) => {
+    if (!selectedEntry || !selectedEntry.custom_fields) return;
+    const newFields = [...selectedEntry.custom_fields];
+    newFields.splice(index, 1);
+    setSelectedEntry({ ...selectedEntry, custom_fields: newFields });
+  };
+
+  const handleImportFile = async (index: number) => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{
+          name: 'Tệp văn bản',
+          extensions: ['txt', 'md', 'csv', 'pem', 'json']
+        }]
+      });
+      if (selected && typeof selected === 'string') {
+        const contents = await readTextFile(selected);
+        if (contents.length > 10240) {
+          showToast('File quá lớn (giới hạn 10KB)');
+          return;
+        }
+        handleUpdateCustomField(index, { value: contents });
+        showToast('Đã import file');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Lỗi khi đọc file');
+    }
+  };
+
+  const toggleCustomPassword = (id: string) => {
+    setShowCustomPasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const categories = Array.from(new Set(entries.map(e => e.category).filter(Boolean)));
   const filtered = entries.filter(e => {
-    const matchSearch = e.title.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = e.title.toLowerCase().includes(search.toLowerCase()) || 
+      (e.custom_fields && e.custom_fields.some(f => f.value.toLowerCase().includes(search.toLowerCase())));
     const matchCategory = selectedCategory ? e.category === selectedCategory : true;
     return matchSearch && matchCategory;
   }).sort((a, b) => {
@@ -295,7 +358,7 @@ export default function Dashboard({ onLock }: Props) {
           {filtered.map((entry, i) => (
             <div 
               key={entry.id}
-              onClick={() => { setSelectedEntry(entry); setIsEditing(false); setShowHistoryIdx(null); goHome(); }}
+              onClick={() => { setSelectedEntry(entry); setIsEditing(false); setShowHistoryIdx(null); setShowPassword(false); setShowCustomPasswords({}); goHome(); }}
               className={`px-4 py-3.5 rounded-2xl cursor-pointer transition-all duration-300 flex items-center gap-4 group animate-in fade-in slide-in-from-left-4
                 ${selectedEntry?.id === entry.id && viewMode === 'vault'
                   ? 'bg-white/10 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]' 
@@ -402,83 +465,196 @@ export default function Dashboard({ onLock }: Props) {
                   </div>
                   
                   {/* Field: Username */}
-                  <div>
-                    <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Tên đăng nhập / Email</label>
-                    <div className="relative group">
+                  {(isEditing || selectedEntry.username) && (
+                    <div>
+                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Tên đăng nhập / Email</label>
+                      <div className="relative group">
+                        <input
+                          type="text"
+                          readOnly={!isEditing}
+                          value={selectedEntry.username}
+                          onChange={(e) => setSelectedEntry({ ...selectedEntry, username: e.target.value })}
+                          className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-white'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors pr-12`}
+                        />
+                        {!isEditing && (
+                          <button 
+                            type="button" 
+                            onClick={() => copyToClipboard(selectedEntry.username)} 
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-all active:scale-95"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Field: Password */}
+                  {(isEditing || selectedEntry.password) && (
+                    <div>
+                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Mật khẩu</label>
+                      <div className="relative group">
+                        <input
+                          type={isEditing || showPassword ? "text" : "password"}
+                          readOnly={!isEditing}
+                          value={selectedEntry.password}
+                          onChange={(e) => setSelectedEntry({ ...selectedEntry, password: e.target.value })}
+                          className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-white'} rounded-2xl px-5 py-4 text-base font-mono tracking-widest focus:outline-none transition-colors pr-24`}
+                        />
+                        {isEditing ? (
+                          <button 
+                            type="button" 
+                            onClick={() => setShowGenerator(true)} 
+                            className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-medium tracking-wide flex items-center gap-1.5 transition-colors active:scale-95"
+                          >
+                            <KeyRound size={12} /> Auto
+                          </button>
+                        ) : (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              type="button" 
+                              onClick={() => setShowPassword(!showPassword)} 
+                              className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full active:scale-95"
+                            >
+                              {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => copyToClipboard(selectedEntry.password)} 
+                              className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full active:scale-95"
+                            >
+                              <Copy size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Field: URL */}
+                  {(isEditing || selectedEntry.url) && (
+                    <div>
+                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Địa chỉ Website</label>
+                      <input
+                        type="url"
+                        readOnly={!isEditing}
+                        value={selectedEntry.url}
+                        onChange={(e) => setSelectedEntry({ ...selectedEntry, url: e.target.value })}
+                        className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors`}
+                      />
+                    </div>
+                  )}
+
+                  {/* Field: Category */}
+                  {(isEditing || selectedEntry.category) && (
+                    <div>
+                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Danh mục (Tab/Folder)</label>
                       <input
                         type="text"
                         readOnly={!isEditing}
-                        value={selectedEntry.username}
-                        onChange={(e) => setSelectedEntry({ ...selectedEntry, username: e.target.value })}
-                        className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-white'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors pr-12`}
+                        value={selectedEntry.category}
+                        onChange={(e) => setSelectedEntry({ ...selectedEntry, category: e.target.value })}
+                        placeholder="Ví dụ: Game, Công việc, Cá nhân..."
+                        className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors`}
                       />
-                      {!isEditing && (
-                        <button 
-                          type="button" 
-                          onClick={() => copyToClipboard(selectedEntry.username)} 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-all active:scale-95"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      )}
                     </div>
-                  </div>
+                  )}
 
-                  {/* Field: Password */}
-                  <div>
-                    <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Mật khẩu</label>
-                    <div className="relative group">
-                      <input
-                        type={isEditing ? "text" : "password"}
-                        readOnly={!isEditing}
-                        value={selectedEntry.password}
-                        onChange={(e) => setSelectedEntry({ ...selectedEntry, password: e.target.value })}
-                        className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-white'} rounded-2xl px-5 py-4 text-base font-mono tracking-widest focus:outline-none transition-colors pr-24`}
-                      />
-                      {isEditing ? (
-                        <button 
-                          type="button" 
-                          onClick={() => setShowGenerator(true)} 
-                          className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-medium tracking-wide flex items-center gap-1.5 transition-colors active:scale-95"
-                        >
-                          <KeyRound size={12} /> Auto
-                        </button>
-                      ) : (
-                        <button 
-                          type="button" 
-                          onClick={() => copyToClipboard(selectedEntry.password)} 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-all active:scale-95"
-                        >
-                          <Copy size={14} />
-                        </button>
-                      )}
+                  {/* Custom Fields */}
+                  {(selectedEntry.custom_fields || []).map((field, idx) => (
+                    (!isEditing && !field.value) ? null : (
+                      <div key={field.id} className="pt-4 border-t border-white/5 relative group">
+                        <div className="flex items-center justify-between mb-2.5">
+                          {isEditing ? (
+                            <input 
+                              type="text" 
+                              value={field.label === 'New Field' ? 'Trường mới' : field.label}
+                              onChange={e => handleUpdateCustomField(idx, { label: e.target.value })}
+                              className="bg-transparent text-[10px] font-semibold text-zinc-300 uppercase tracking-[0.15em] ml-1 focus:outline-none border-b border-white/20 w-1/2 pb-1"
+                              placeholder="Tên trường (Label)"
+                            />
+                          ) : (
+                            <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] ml-1">
+                              {field.label === 'New Field' ? 'Trường mới' : field.label}
+                            </label>
+                          )}
+                          {isEditing && (
+                            <button type="button" onClick={() => handleRemoveCustomField(idx)} className="text-zinc-500 hover:text-red-400 p-1">
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="relative group/field">
+                          {field.field_type !== 'Password' ? (
+                            <textarea
+                              readOnly={!isEditing}
+                              value={field.value}
+                              onChange={e => {
+                                if (e.target.value.length <= 10240) {
+                                  handleUpdateCustomField(idx, { value: e.target.value });
+                                }
+                              }}
+                              className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-sm font-mono tracking-wide focus:outline-none transition-colors min-h-[120px] custom-scrollbar`}
+                            />
+                          ) : (
+                            <input
+                              type={!isEditing && !showCustomPasswords[field.id] ? 'password' : 'text'}
+                              readOnly={!isEditing}
+                              value={field.value}
+                              onChange={e => {
+                                if (e.target.value.length <= 10240) {
+                                  handleUpdateCustomField(idx, { value: e.target.value });
+                                }
+                              }}
+                              className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base font-mono tracking-widest focus:outline-none transition-colors pr-24`}
+                            />
+                          )}
+
+                          {!isEditing && (
+                            <div className="absolute right-3 top-4 flex items-center gap-1 opacity-0 group-hover/field:opacity-100 transition-all">
+                              {field.field_type === 'Password' && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => toggleCustomPassword(field.id)} 
+                                  className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full active:scale-95"
+                                >
+                                  {showCustomPasswords[field.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                              )}
+                              <button 
+                                type="button" 
+                                onClick={() => copyToClipboard(field.value)} 
+                                className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-white/10 rounded-full active:scale-95"
+                              >
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                          )}
+                          
+                          {isEditing && field.field_type !== 'Password' && (
+                            <button
+                              type="button"
+                              onClick={() => handleImportFile(idx)}
+                              className="mt-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-300 rounded-lg text-[11px] font-medium tracking-wide flex items-center gap-1.5 transition-colors w-fit"
+                            >
+                              <Upload size={12} /> Nhập từ File
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                  {isEditing && (
+                    <div className="pt-2">
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold ml-1 mr-2">Thêm trường:</span>
+                        <button type="button" onClick={() => handleAddCustomField('Text')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-full text-[11px] font-medium text-white transition-colors border border-white/5 flex items-center gap-1"><Plus size={12}/> Văn bản</button>
+                        <button type="button" onClick={() => handleAddCustomField('Password')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-full text-[11px] font-medium text-white transition-colors border border-white/5 flex items-center gap-1"><Plus size={12}/> Mật khẩu</button>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Field: URL */}
-                  <div>
-                    <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Địa chỉ Website</label>
-                    <input
-                      type="url"
-                      readOnly={!isEditing}
-                      value={selectedEntry.url}
-                      onChange={(e) => setSelectedEntry({ ...selectedEntry, url: e.target.value })}
-                      className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors`}
-                    />
-                  </div>
-
-                  {/* Field: Category */}
-                  <div>
-                    <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em] mb-2.5 ml-1">Danh mục (Tab/Folder)</label>
-                    <input
-                      type="text"
-                      readOnly={!isEditing}
-                      value={selectedEntry.category}
-                      onChange={(e) => setSelectedEntry({ ...selectedEntry, category: e.target.value })}
-                      placeholder="Ví dụ: Game, Công việc, Cá nhân..."
-                      className={`w-full bg-white/5 border ${isEditing ? 'border-white/10 focus:border-white/20' : 'border-transparent text-zinc-300'} rounded-2xl px-5 py-4 text-base focus:outline-none transition-colors`}
-                    />
-                  </div>
+                  )}
 
                   {!isEditing && selectedEntry.password_history && selectedEntry.password_history.length > 0 && (
                     <div className="pt-4 border-t border-white/5">

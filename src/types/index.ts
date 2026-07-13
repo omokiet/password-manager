@@ -10,6 +10,16 @@ export interface PasswordEntry {
   updated_at: number;
   is_favorite: boolean;
   password_history: PasswordHistoryEntry[];
+  custom_fields?: CustomField[];
+}
+
+export type CustomFieldType = 'Text' | 'Password' | 'Multiline';
+
+export interface CustomField {
+  id: string;
+  label: string;
+  value: string;
+  field_type: CustomFieldType;
 }
 
 export interface PasswordHistoryEntry {

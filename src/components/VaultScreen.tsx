@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Lock, Unlock, ArrowRight } from 'lucide-react';
+import { Lock, Unlock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 interface Props {
   onUnlocked: () => void;
@@ -13,6 +13,8 @@ export default function VaultScreen({ onUnlocked }: Props) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,30 +108,44 @@ export default function VaultScreen({ onUnlocked }: Props) {
           <form onSubmit={handleSubmit} className="bg-[#0a0a0a]/80 backdrop-blur-xl rounded-[calc(2rem-0.375rem)] p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] border border-white/5">
             <div className="space-y-4">
               
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative group">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] px-5 py-4 text-white placeholder-zinc-600 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all duration-300"
+                  className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] px-5 py-4 pr-12 text-white placeholder-zinc-600 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all duration-300"
                   placeholder="Mật khẩu chủ"
                   required
                   disabled={isLoading}
                   autoFocus
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
 
               {isCreating && (
-                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="space-y-1.5 relative group animate-in fade-in slide-in-from-top-4 duration-500">
                   <input
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] px-5 py-4 text-white placeholder-zinc-600 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all duration-300"
+                    className="w-full bg-white/5 border border-white/10 rounded-[1.25rem] px-5 py-4 pr-12 text-white placeholder-zinc-600 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-all duration-300"
                     placeholder="Xác nhận mật khẩu"
                     required
                     disabled={isLoading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
               )}
 
@@ -173,8 +189,10 @@ export default function VaultScreen({ onUnlocked }: Props) {
             {isCreating ? 'Đã có Vault? Mở khóa ngay' : 'Chưa có Vault? Tạo mới'}
           </button>
           
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <span className="text-[10px] text-zinc-700 uppercase tracking-[0.15em]">hoặc</span>
+          <div className="mt-4 flex items-center justify-center gap-3 opacity-60">
+            <div className="w-8 h-px bg-white/10"></div>
+            <span className="text-[10px] text-zinc-400 uppercase tracking-[0.15em]">hoặc</span>
+            <div className="w-8 h-px bg-white/10"></div>
           </div>
 
           <div className="mt-4">

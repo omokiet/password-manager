@@ -273,6 +273,14 @@ mod tests {
             updated_at: 0,
             is_favorite: false,
             password_history: vec![],
+            custom_fields: vec![
+                crate::models::CustomField {
+                    id: "cf1".into(),
+                    label: "Recovery Codes".into(),
+                    value: "code1\ncode2".into(),
+                    field_type: crate::models::CustomFieldType::Multiline,
+                }
+            ],
         };
 
         // Add
