@@ -27,6 +27,7 @@ dist-ssr
 .project-root/
 .agents/
 skills-lock.json
+.codegraph/
 # Rust / Tauri
 src-tauri/target/
 *.db
@@ -35,3 +36,4 @@ src-tauri/target/
 *.vaultbak
 .env
 .agents/*
+HANDOFF.md

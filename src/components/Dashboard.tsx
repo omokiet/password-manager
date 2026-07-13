@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { PasswordEntry } from '../types';
-import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity, Upload, X } from 'lucide-react';
+import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity, Upload, X, HelpCircle } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { CustomField, CustomFieldType } from '../types';
 import PasswordGenerator from './PasswordGenerator';
 import SettingsPanel from './SettingsPanel';
 import HealthDashboard from './HealthDashboard';
+import UserGuide from './UserGuide';
 
 interface Props {
   onLock: () => void;
@@ -38,11 +39,11 @@ export default function Dashboard({ onLock }: Props) {
   const [showHistoryIdx, setShowHistoryIdx] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showCustomPasswords, setShowCustomPasswords] = useState<Record<string, boolean>>({});
-  const [viewHistory, setViewHistory] = useState<('vault' | 'settings' | 'health')[]>(['vault']);
+  const [viewHistory, setViewHistory] = useState<('vault' | 'settings' | 'health' | 'guide')[]>(['vault']);
   const viewMode = viewHistory[viewHistory.length - 1];
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const navigateTo = (view: 'vault' | 'settings' | 'health') => {
+  const navigateTo = (view: 'vault' | 'settings' | 'health' | 'guide') => {
     if (viewMode === view) return;
     if (view === 'vault') {
       setViewHistory(['vault']);
@@ -313,6 +314,13 @@ export default function Dashboard({ onLock }: Props) {
               <Settings size={14} strokeWidth={2} />
             </button>
             <button 
+              onClick={() => navigateTo('guide')}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors border active:scale-95 ${viewMode === 'guide' ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-transparent hover:bg-white/10 text-zinc-400 hover:text-white hover:border-white/10'}`}
+              title="Hướng dẫn sử dụng"
+            >
+              <HelpCircle size={14} strokeWidth={2} />
+            </button>
+            <button 
               onClick={handleLock} 
               className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-transparent hover:border-white/10 active:scale-95" 
               title="Khóa Vault"
@@ -404,7 +412,9 @@ export default function Dashboard({ onLock }: Props) {
 
       {/* Main Detail Area */}
       <div className="flex-1 flex flex-col relative overflow-y-auto custom-scrollbar bg-black/20">
-        {viewMode === 'health' ? (
+        {viewMode === 'guide' ? (
+          <UserGuide onBack={goBack} onHome={goHome} />
+        ) : viewMode === 'health' ? (
           <HealthDashboard entries={entries} onBack={goBack} onHome={goHome} onEdit={(entry) => { setSelectedEntry(entry); setIsEditing(true); goHome(); }} />
         ) : viewMode === 'settings' ? (
           <SettingsPanel onBack={goBack} onHome={goHome} showToast={showToast} />
