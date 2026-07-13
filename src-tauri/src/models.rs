@@ -15,10 +15,27 @@ pub struct PasswordEntry {
     pub is_favorite: bool,
     #[serde(default)]
     pub password_history: Vec<PasswordHistoryEntry>,
+    #[serde(default)]
+    pub custom_fields: Vec<CustomField>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PasswordHistoryEntry {
     pub old_password: String,
     pub changed_at: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum CustomFieldType {
+    Text,
+    Password,
+    Multiline,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomField {
+    pub id: String,
+    pub label: String,
+    pub value: String,
+    pub field_type: CustomFieldType,
 }

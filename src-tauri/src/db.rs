@@ -35,7 +35,8 @@ pub fn create_vault<P: AsRef<Path>>(path: P, key: &[u8]) -> Result<()> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             is_favorite INTEGER NOT NULL DEFAULT 0,
-            password_history TEXT NOT NULL DEFAULT '[]'
+            password_history TEXT NOT NULL DEFAULT '[]',
+            custom_fields TEXT NOT NULL DEFAULT '[]'
         )",
         [],
     )
@@ -91,6 +92,10 @@ fn migrate_db(conn: &Connection) -> Result<()> {
         "ALTER TABLE entries ADD COLUMN password_history TEXT NOT NULL DEFAULT '[]'",
         [],
     );
+    let _ = conn.execute(
+        "ALTER TABLE entries ADD COLUMN custom_fields TEXT NOT NULL DEFAULT '[]'",
+        [],
+    );
     Ok(())
 }
 
@@ -101,13 +106,14 @@ pub fn add_entry(conn: &Connection, mut entry: PasswordEntry) -> Result<Password
     entry.updated_at = entry.created_at;
 
     conn.execute(
-        "INSERT INTO entries (id, title, username, password, url, notes, category, created_at, updated_at, is_favorite, password_history) 
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO entries (id, title, username, password, url, notes, category, created_at, updated_at, is_favorite, password_history, custom_fields) 
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         params![
             entry.id, entry.title, entry.username, entry.password,
             entry.url, entry.notes, entry.category, entry.created_at, entry.updated_at,
             entry.is_favorite as i32,
-            serde_json::to_string(&entry.password_history).unwrap_or_else(|_| "[]".to_string())
+            serde_json::to_string(&entry.password_history).unwrap_or_else(|_| "[]".to_string()),
+            serde_json::to_string(&entry.custom_fields).unwrap_or_else(|_| "[]".to_string())
         ],
     )
     .map_err(|e| AppError::DatabaseError(format!("Lỗi lưu entry: {}", e)))?;
@@ -143,13 +149,14 @@ pub fn update_entry(conn: &Connection, mut entry: PasswordEntry) -> Result<Passw
 
     let rows_affected = conn.execute(
         "UPDATE entries 
-         SET title = ?1, username = ?2, password = ?3, url = ?4, notes = ?5, category = ?6, updated_at = ?7, is_favorite = ?8, password_history = ?9
-         WHERE id = ?10",
+         SET title = ?1, username = ?2, password = ?3, url = ?4, notes = ?5, category = ?6, updated_at = ?7, is_favorite = ?8, password_history = ?9, custom_fields = ?10
+         WHERE id = ?11",
         params![
             entry.title, entry.username, entry.password, entry.url,
             entry.notes, entry.category, entry.updated_at, 
             entry.is_favorite as i32,
             serde_json::to_string(&entry.password_history).unwrap_or_else(|_| "[]".to_string()),
+            serde_json::to_string(&entry.custom_fields).unwrap_or_else(|_| "[]".to_string()),
             entry.id
         ],
     )
@@ -178,7 +185,7 @@ pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
 /// Lấy tất cả Entry
 pub fn get_all_entries(conn: &Connection) -> Result<Vec<PasswordEntry>> {
     let mut stmt = conn
-        .prepare("SELECT id, title, username, password, url, notes, category, created_at, updated_at, is_favorite, password_history FROM entries")
+        .prepare("SELECT id, title, username, password, url, notes, category, created_at, updated_at, is_favorite, password_history, custom_fields FROM entries")
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     let entry_iter = stmt
@@ -195,6 +202,8 @@ pub fn get_all_entries(conn: &Connection) -> Result<Vec<PasswordEntry>> {
                 updated_at: row.get(8)?,
                 is_favorite: row.get::<_, i32>(9)? != 0,
                 password_history: serde_json::from_str(&row.get::<_, String>(10)?)
+                    .unwrap_or_default(),
+                custom_fields: serde_json::from_str(&row.get::<_, String>(11)?)
                     .unwrap_or_default(),
             })
         })
