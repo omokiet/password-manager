@@ -15,8 +15,10 @@ Một ứng dụng desktop quản lý mật khẩu offline hoàn toàn, được
 - Lưu Trữ An Toàn: File vault (`vault.db`) và salt (`vault.salt`) được lưu ngầm định an toàn trong thư mục `app_data_dir` của hệ điều hành.
 - Xóa Bộ Nhớ (Memory Sanitization): Key mã hóa và các struct nhạy cảm bị xóa hoàn toàn khỏi bộ nhớ RAM bằng thư viện `zeroize` ngay khi không còn sử dụng hoặc khi vault bị khóa.
 
-## Các Tính Năng Cốt Lõi (v1.1.2)
+## Các Tính Năng Cốt Lõi (v1.1.5)
 - **Quản lý Mật Khẩu (CRUD)**: Lưu trữ, chỉnh sửa, xóa và tạo mật khẩu ngẫu nhiên an toàn.
+- **Trường Dữ Liệu Tùy Chỉnh (Custom Fields)**: Thêm các trường Text (hỗ trợ nhập từ file) và Mật khẩu phụ động, không giới hạn.
+- **Hướng Dẫn Sử Dụng In-App**: Tích hợp sách hướng dẫn sử dụng ngay bên trong ứng dụng, thân thiện với người không chuyên.
 - **Phân loại Tab thông minh (Category & Favorite)**: Gõ "Tên danh mục" lúc tạo mật khẩu, ứng dụng tự động tạo ra một tab phân loại ở Sidebar. Mật khẩu đánh dấu sao (Favorite) luôn được ghim lên đầu.
 - **Lưu Trữ Lịch Sử**: Tự động lưu tối đa 5 lần đổi mật khẩu gần nhất của mỗi mục.
 - **Đổi Mật Khẩu Chủ & Wipe Data**: Cơ chế rekey dữ liệu an toàn trên SQLite. Tích hợp Danger Zone cho phép xóa vĩnh viễn toàn bộ dữ liệu khi cần.
