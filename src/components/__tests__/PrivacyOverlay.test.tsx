@@ -14,3 +14,4 @@ describe('PrivacyOverlay Component', () => {
     expect(screen.queryByTestId('privacy-overlay')).not.toBeInTheDocument();
   });
 });
+

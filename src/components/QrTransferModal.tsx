@@ -263,3 +263,4 @@ export default function QrTransferModal({ mode, entry, onClose, onImportEntry }:
     </div>
   );
 }
+

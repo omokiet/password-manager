@@ -30,3 +30,4 @@ describe('QR Crypto utilities', () => {
     await expect(decryptEntryPayload(cipherText, '0000')).rejects.toThrow();
   });
 });
+

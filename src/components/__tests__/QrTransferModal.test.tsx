@@ -39,3 +39,4 @@ describe('QrTransferModal Component', () => {
     expect(handleClose).toHaveBeenCalled();
   });
 });
+

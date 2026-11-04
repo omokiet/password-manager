@@ -100,3 +100,4 @@ export async function decryptEntryPayload(cipherText: string, pin: string): Prom
   const jsonStr = dec.decode(decryptedBuffer);
   return JSON.parse(jsonStr);
 }
+
