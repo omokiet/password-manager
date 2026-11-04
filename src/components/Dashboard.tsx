@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { PasswordEntry } from '../types';
-import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity, Upload, X, HelpCircle } from 'lucide-react';
+import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity, Upload, X, HelpCircle, ArrowLeft, Zap, QrCode } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { CustomField, CustomFieldType } from '../types';
 import PasswordGenerator from './PasswordGenerator';
 import SettingsPanel from './SettingsPanel';
 import HealthDashboard from './HealthDashboard';
 import UserGuide from './UserGuide';
+import QrTransferModal from './QrTransferModal';
 
 interface Props {
   onLock: () => void;
@@ -38,6 +39,7 @@ export default function Dashboard({ onLock }: Props) {
   const [showHistoryIdx, setShowHistoryIdx] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showCustomPasswords, setShowCustomPasswords] = useState<Record<string, boolean>>({});
+  const [qrModalConfig, setQrModalConfig] = useState<{ isOpen: boolean; mode: 'export' | 'import'; entry?: PasswordEntry | null } | null>(null);
   const [viewHistory, setViewHistory] = useState<('vault' | 'settings' | 'health' | 'guide')[]>(['vault']);
   const viewMode = viewHistory[viewHistory.length - 1];
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -245,7 +247,7 @@ export default function Dashboard({ onLock }: Props) {
   });
 
   return (
-    <div className="flex h-full w-full bg-transparent overflow-hidden text-zinc-200">
+    <div className="flex flex-col h-full w-full bg-transparent overflow-hidden text-zinc-200">
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-8 right-8 z-[100] bg-[#111]/90 backdrop-blur-xl border border-white/10 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-medium animate-in slide-in-from-right-8 fade-in duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
@@ -288,8 +290,33 @@ export default function Dashboard({ onLock }: Props) {
         />
       )}
 
+      {/* QR Transfer Modal */}
+      {qrModalConfig?.isOpen && (
+        <QrTransferModal
+          mode={qrModalConfig.mode}
+          entry={qrModalConfig.entry}
+          onClose={() => setQrModalConfig(null)}
+          onImportEntry={async (imported) => {
+            await invoke('add_entry', { 
+              entry: {
+                ...imported,
+                id: '',
+                is_favorite: false,
+                password_history: [],
+                custom_fields: [],
+                created_at: 0,
+                updated_at: 0,
+              } 
+            });
+            await loadEntries();
+          }}
+        />
+      )}
+
       {/* Left Sidebar */}
-      <div className="w-[320px] md:w-[380px] shrink-0 border-r border-white/5 bg-white/[0.01] flex flex-col relative z-10">
+      {/* Split view wrapper */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        <div className={`w-full md:w-[380px] shrink-0 md:border-r border-white/5 bg-white/[0.01] flex flex-col relative z-10 ${viewMode !== 'vault' || selectedEntry ? 'hidden md:flex' : 'flex flex-1'}`}>
         <div className="px-6 py-8 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
@@ -318,6 +345,13 @@ export default function Dashboard({ onLock }: Props) {
               title="Hướng dẫn sử dụng"
             >
               <HelpCircle size={14} strokeWidth={2} />
+            </button>
+            <button 
+              onClick={() => setQrModalConfig({ isOpen: true, mode: 'import' })}
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors border border-transparent hover:border-white/10 active:scale-95"
+              title="Quét mã QR"
+            >
+              <QrCode size={14} strokeWidth={2} />
             </button>
             <button 
               onClick={handleLock} 
@@ -410,7 +444,7 @@ export default function Dashboard({ onLock }: Props) {
       </div>
 
       {/* Main Detail Area */}
-      <div className="flex-1 flex flex-col relative overflow-y-auto custom-scrollbar bg-black/20">
+      <div className={`flex-1 flex flex-col relative overflow-y-auto custom-scrollbar bg-black/20 ${viewMode === 'vault' && !selectedEntry ? 'hidden md:flex' : 'flex'}`}>
         {viewMode === 'guide' ? (
           <UserGuide onBack={goBack} onHome={goHome} />
         ) : viewMode === 'health' ? (
@@ -418,7 +452,14 @@ export default function Dashboard({ onLock }: Props) {
         ) : viewMode === 'settings' ? (
           <SettingsPanel onBack={goBack} onHome={goHome} showToast={showToast} />
         ) : selectedEntry ? (
-          <div className="max-w-3xl w-full mx-auto px-10 py-16 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]">
+          <div className="max-w-3xl w-full mx-auto px-6 sm:px-10 py-8 sm:py-16 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]">
+            <button 
+              type="button" 
+              onClick={() => { setSelectedEntry(null); setIsEditing(false); }}
+              className="md:hidden flex items-center gap-2 text-sm text-zinc-400 hover:text-white mb-6 py-2 px-3.5 -ml-2 rounded-full bg-white/5 w-fit active:scale-95 transition-all"
+            >
+              <ArrowLeft size={16} /> Quay lại danh sách
+            </button>
             
             <div className="flex justify-between items-start mb-16">
               <div>
@@ -439,6 +480,14 @@ export default function Dashboard({ onLock }: Props) {
               
               {!isEditing && (
                 <div className="flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setQrModalConfig({ isOpen: true, mode: 'export', entry: selectedEntry })}
+                    className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-full transition-colors border border-white/10 active:scale-95"
+                    title="Chia sẻ qua mã QR"
+                  >
+                    <QrCode size={16} />
+                  </button>
                   <button 
                     onClick={() => setIsEditing(true)} 
                     className="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium transition-colors border border-white/10 active:scale-95 text-white"
@@ -725,5 +774,38 @@ export default function Dashboard({ onLock }: Props) {
         )}
       </div>
     </div>
+
+    {/* Mobile Bottom Navigation Bar */}
+    <nav aria-label="Mobile Navigation" className="md:hidden shrink-0 border-t border-white/10 bg-[#0c0c0c]/95 backdrop-blur-xl px-2 py-1.5 flex items-center justify-around z-30">
+      <button 
+        onClick={() => { navigateTo('vault'); setSelectedEntry(null); }}
+        className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-colors min-h-[44px] ${viewMode === 'vault' && !selectedEntry ? 'text-white font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+      >
+        <Shield size={18} strokeWidth={viewMode === 'vault' && !selectedEntry ? 2.5 : 1.5} />
+        <span className="text-[10px]">Vault</span>
+      </button>
+      <button 
+        onClick={() => setShowGenerator(true)}
+        className="flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl text-zinc-500 hover:text-zinc-300 transition-colors min-h-[44px]"
+      >
+        <Zap size={18} strokeWidth={1.5} />
+        <span className="text-[10px]">Tạo Pass</span>
+      </button>
+      <button 
+        onClick={() => { navigateTo('health'); setSelectedEntry(null); }}
+        className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-colors min-h-[44px] ${viewMode === 'health' ? 'text-white font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+      >
+        <Activity size={18} strokeWidth={viewMode === 'health' ? 2.5 : 1.5} />
+        <span className="text-[10px]">Sức khỏe</span>
+      </button>
+      <button 
+        onClick={() => { navigateTo('settings'); setSelectedEntry(null); }}
+        className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-colors min-h-[44px] ${viewMode === 'settings' ? 'text-white font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+      >
+        <Settings size={18} strokeWidth={viewMode === 'settings' ? 2.5 : 1.5} />
+        <span className="text-[10px]">Cài đặt</span>
+      </button>
+    </nav>
+  </div>
   );
 }

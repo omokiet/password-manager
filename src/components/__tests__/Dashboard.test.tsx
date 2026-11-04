@@ -15,9 +15,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 describe('Dashboard Component', () => {
   it('renders Vault by default', async () => {
     render(<Dashboard onLock={() => {}} />);
-    // Initial view should show vault logic (add button etc)
-    // Actually we just wait for render and find text that implies Vault
-    expect(await screen.findByText(/Vault/i)).toBeInTheDocument();
+    const vaultElements = await screen.findAllByText(/Vault/i);
+    expect(vaultElements.length).toBeGreaterThanOrEqual(1);
   });
 
   it('navigates to Settings when Settings button is clicked', async () => {
@@ -38,6 +37,12 @@ describe('Dashboard Component', () => {
     fireEvent.click(backButton);
     
     // We should be back in Vault
-    expect(await screen.findByText(/Vault/i)).toBeInTheDocument();
+    const elements = await screen.findAllByText(/Vault/i);
+    expect(elements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders mobile navigation bar', async () => {
+    render(<Dashboard onLock={() => {}} />);
+    expect(await screen.findByRole('navigation', { name: 'Mobile Navigation' })).toBeInTheDocument();
   });
 });
