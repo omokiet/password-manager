@@ -29,7 +29,11 @@ export default function HealthDashboard({ entries, onBack, onHome, onEdit }: Pro
 
   const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000;
   const now = Date.now();
-  const oldEntries = entries.filter(e => (now - e.updated_at) > ninetyDaysInMs);
+  const oldEntries = entries.filter(e => {
+    // Chuyển đổi timestamp Unix giây sang mili-giây nếu cần
+    const updatedAtMs = e.updated_at > 1e11 ? e.updated_at : e.updated_at * 1000;
+    return (now - updatedAtMs) > ninetyDaysInMs;
+  });
 
   const score = entries.length === 0 ? 100 : Math.max(0, Math.round(
     100 - (weakEntries.length / entries.length) * 40 - (reusedEntries.length / entries.length) * 40 - (oldEntries.length / entries.length) * 20
