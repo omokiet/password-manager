@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto';
 import '@testing-library/jest-dom';
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
@@ -24,15 +25,8 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock crypto.getRandomValues for PasswordGenerator
+// Polyfill window.crypto with Node.js webcrypto for tests
 Object.defineProperty(window, 'crypto', {
   writable: true,
-  value: {
-    getRandomValues: vi.fn().mockImplementation((arr: Uint32Array) => {
-      for (let i = 0; i < arr.length; i++) {
-        arr[i] = Math.floor(Math.random() * 256);
-      }
-      return arr;
-    }),
-  }
+  value: webcrypto,
 });
