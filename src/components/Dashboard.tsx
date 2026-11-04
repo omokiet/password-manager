@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { PasswordEntry } from '../types';
 import { Plus, Search, LogOut, Copy, Trash2, KeyRound, Shield, Star, History, Eye, EyeOff, Settings, Activity, Upload, X, HelpCircle } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { readTextFile } from '@tauri-apps/plugin-fs';
 import { CustomField, CustomFieldType } from '../types';
 import PasswordGenerator from './PasswordGenerator';
 import SettingsPanel from './SettingsPanel';
@@ -213,7 +212,7 @@ export default function Dashboard({ onLock }: Props) {
         }]
       });
       if (selected && typeof selected === 'string') {
-        const contents = await readTextFile(selected);
+        const contents = await invoke<string>('read_file_content', { filePath: selected });
         if (contents.length > 10240) {
           showToast('File quá lớn (giới hạn 10KB)');
           return;

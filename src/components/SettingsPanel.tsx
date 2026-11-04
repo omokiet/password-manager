@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ShieldAlert, KeyRound, Download, DatabaseBackup, Trash2, ArrowLeft, Home } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
-import { writeTextFile } from '@tauri-apps/plugin-fs';
 
 interface Props {
-
   onBack: () => void;
   onHome: () => void;
   showToast: (msg: string) => void;
@@ -53,7 +51,6 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
   const handleExportBackup = async () => {
     setStatus('loading');
     try {
-      const data: string = await invoke('export_backup');
       const filePath = await save({
         filters: [{
           name: 'Vault Backup',
@@ -62,7 +59,7 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
         defaultPath: `backup_${new Date().toISOString().split('T')[0]}.vaultbak`
       });
       if (filePath) {
-        await writeTextFile(filePath, data);
+        await invoke('export_backup', { targetPath: filePath });
         setStatus('success');
         showToast(`Đã lưu bản sao lưu thành công tại: ${filePath}`);
       } else {
@@ -185,7 +182,7 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
               <button 
                 type="submit" 
                 disabled={status === 'loading'}
-                className="px-8 py-3.5 bg-white hover:bg-zinc-100 disabled:opacity-50 text-black active:scale-[0.98] font-medium rounded-full transition-all flex items-center gap-2"
+                className="px-8 py-3.5 bg-white hover:bg-zinc-100 disabled:opacity-50 text-black active:scale-[0.98] font-medium rounded-full transition-all flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
               >
                 <KeyRound size={16} />
                 {status === 'loading' ? 'Đang đổi...' : 'Đổi mật khẩu'}
@@ -211,9 +208,9 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
                 type="button"
                 onClick={handleExportBackup}
                 disabled={status === 'loading'}
-                className="w-full px-6 py-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white rounded-2xl transition-all border border-white/10 active:scale-95 flex items-center justify-center gap-3"
+                className="w-full px-6 py-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white rounded-2xl transition-all border border-white/10 active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed"
               >
-                <Download size={18} /> Chọn nơi lưu & Tạo bản sao lưu
+                <Download size={18} /> {status === 'loading' ? 'Đang sao lưu...' : 'Chọn nơi lưu & Tạo bản sao lưu'}
               </button>
             </div>
           </div>
@@ -236,9 +233,9 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
                 type="button"
                 onClick={handleDeleteAll}
                 disabled={status === 'loading'}
-                className="w-full px-6 py-4 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 text-red-400 font-medium rounded-2xl transition-all border border-red-500/20 active:scale-95 flex items-center justify-center gap-3"
+                className="w-full px-6 py-4 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 text-red-400 font-medium rounded-2xl transition-all border border-red-500/20 active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed"
               >
-                <Trash2 size={18} /> Xóa toàn bộ mật khẩu
+                <Trash2 size={18} /> {status === 'loading' ? 'Đang xử lý...' : 'Xóa toàn bộ mật khẩu'}
               </button>
             </div>
           </div>
