@@ -1,7 +1,3 @@
-use aes_gcm::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
-    Aes256Gcm, Key, Nonce,
-};
 use argon2::{
     password_hash::{rand_core::OsRng as ArgonOsRng, PasswordHasher, SaltString},
     Argon2, Params,
@@ -45,50 +41,6 @@ pub fn derive_key(password: &str, salt: &str) -> Result<Zeroizing<Vec<u8>>> {
     Ok(Zeroizing::new(key_bytes))
 }
 
-/// Mã hóa dữ liệu byte array bằng thuật toán AES-256-GCM.
-/// Tại sao: AES-GCM cung cấp Authenticated Encryption, vừa mã hóa vừa bảo vệ toàn vẹn dữ liệu.
-pub fn encrypt_data(key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
-    if key.len() != 32 {
-        return Err(AppError::CryptoError("Key phải dài 32 bytes".into()));
-    }
-
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 12 bytes
-
-    let mut ciphertext = cipher
-        .encrypt(&nonce, plaintext)
-        .map_err(|_| AppError::CryptoError("Lỗi mã hóa dữ liệu".into()))?;
-
-    let mut result = nonce.to_vec();
-    result.append(&mut ciphertext);
-
-    Ok(result)
-}
-
-/// Giải mã dữ liệu bằng thuật toán AES-256-GCM.
-/// Tại sao: GCM kiểm tra Authentication Tag để phát hiện ciphertext bị giả mạo/chỉnh sửa.
-pub fn decrypt_data(key: &[u8], encrypted_data: &[u8]) -> Result<Vec<u8>> {
-    if key.len() != 32 {
-        return Err(AppError::CryptoError("Key phải dài 32 bytes".into()));
-    }
-
-    if encrypted_data.len() < 12 {
-        return Err(AppError::CryptoError(
-            "Dữ liệu mã hóa không hợp lệ (quá ngắn)".into(),
-        ));
-    }
-
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let (nonce_bytes, ciphertext) = encrypted_data.split_at(12);
-    let nonce = Nonce::from_slice(nonce_bytes);
-
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|_| AppError::CryptoError("Lỗi giải mã (sai key hoặc data bị hỏng)".into()))?;
-
-    Ok(plaintext)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,33 +67,6 @@ mod tests {
     }
 
     #[test]
-    fn test_aes_gcm_encrypt_decrypt() {
-        let salt = generate_salt();
-        let key = derive_key("master_password_8chars", &salt).unwrap();
-
-        let plaintext = b"Hello, Zero-Knowledge World!";
-        let ciphertext = encrypt_data(&key, plaintext).unwrap();
-
-        assert_ne!(plaintext.to_vec(), ciphertext);
-
-        let decrypted = decrypt_data(&key, &ciphertext).unwrap();
-        assert_eq!(plaintext.to_vec(), decrypted);
-    }
-
-    #[test]
-    fn test_aes_gcm_wrong_key() {
-        let salt = generate_salt();
-        let key1 = derive_key("password_a", &salt).unwrap();
-        let key2 = derive_key("password_b", &salt).unwrap();
-
-        let plaintext = b"Secret Message";
-        let ciphertext = encrypt_data(&key1, plaintext).unwrap();
-
-        let result = decrypt_data(&key2, &ciphertext);
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_argon2id_benchmark() {
         use std::time::Instant;
         let password = "benchmark_password";
@@ -152,6 +77,5 @@ mod tests {
         let duration = start.elapsed();
 
         println!("Argon2id derive time: {:?}", duration);
-        // TODO_BENCHMARK_RESULT
     }
 }
