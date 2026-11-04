@@ -44,6 +44,7 @@ pub fn derive_key(password: &str, salt: &str) -> Result<Zeroizing<Vec<u8>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     #[test]
     fn test_argon2id_derivation() {
@@ -68,7 +69,6 @@ mod tests {
 
     #[test]
     fn test_argon2id_benchmark() {
-        use std::time::Instant;
         let password = "benchmark_password";
         let salt = generate_salt();
 

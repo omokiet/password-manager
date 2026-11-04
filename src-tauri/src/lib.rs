@@ -1,3 +1,6 @@
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::Manager;
+
 pub mod commands;
 pub mod crypto;
 pub mod db;
@@ -6,19 +9,25 @@ pub mod models;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            use tauri::Manager;
+        .plugin(tauri_plugin_opener::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
-        }))
-        .plugin(tauri_plugin_opener::init())
+        }));
+    }
+
+    builder
         .invoke_handler(tauri::generate_handler![
             commands::check_vault_exists,
             commands::create_vault,
