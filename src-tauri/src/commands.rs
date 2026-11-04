@@ -159,6 +159,7 @@ pub fn change_master_password(
         // Rollback rekey if file operation failed
         let hex_old_key = hex::encode(old_key.as_slice());
         let _ = conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_old_key));
+        let _ = fs::remove_file(&temp_salt_path);
         return Err(AppError::DatabaseError(format!(
             "Lỗi ghi đè salt mới, đã rollback: {}",
             e
@@ -221,6 +222,17 @@ pub fn get_all_entries(state: State<'_, AppState>) -> Result<Vec<crate::models::
     crate::db::get_all_entries(conn_guard.as_ref().unwrap())
 }
 
+#[tauri::command]
+pub fn read_file_content(file_path: String) -> Result<String> {
+    let metadata = fs::metadata(&file_path)
+        .map_err(|e| AppError::DatabaseError(format!("Không thể đọc thông tin tệp: {}", e)))?;
+    if metadata.len() > 10240 {
+        return Err(AppError::DatabaseError("Tệp quá lớn (vượt quá 10KB)".into()));
+    }
+    fs::read_to_string(&file_path)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi đọc tệp: {}", e)))
+}
+
 // ==========================================
 // Backup & Restore
 // ==========================================
@@ -231,9 +243,13 @@ struct BackupData {
 }
 
 #[tauri::command]
-pub fn export_backup(app: AppHandle) -> Result<String> {
+pub fn export_backup(target_path: String, app: AppHandle) -> Result<()> {
     let path = resolve_vault_path(&app)?;
     let salt_path = get_salt_path(&path);
+
+    if !path.exists() || !salt_path.exists() {
+        return Err(AppError::DatabaseError("Không tìm thấy dữ liệu Vault để sao lưu".into()));
+    }
 
     let db_bytes =
         fs::read(&path).map_err(|e| AppError::DatabaseError(format!("Lỗi đọc DB: {}", e)))?;
@@ -245,8 +261,13 @@ pub fn export_backup(app: AppHandle) -> Result<String> {
         salt: hex::encode(salt_bytes),
     };
 
-    serde_json::to_string(&backup)
-        .map_err(|e| AppError::DatabaseError(format!("Lỗi tạo backup: {}", e)))
+    let backup_json = serde_json::to_string(&backup)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi tạo backup: {}", e)))?;
+
+    fs::write(&target_path, backup_json)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi ghi file sao lưu: {}", e)))?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -266,27 +287,53 @@ pub fn import_backup(
     let path = resolve_vault_path(&app)?;
     let salt_path = get_salt_path(&path);
 
+    // Đóng kết nối DB để nhả file handle trước khi ghi đè
     *state.db_conn.lock().unwrap() = None;
     *state.vault_path.lock().unwrap() = None;
 
     let tmp_db = path.with_extension("db.tmp");
     let tmp_salt = salt_path.with_extension("salt.tmp");
 
-    fs::write(&tmp_db, db_bytes)
-        .map_err(|_| AppError::DatabaseError("Lỗi ghi file DB tạm".into()))?;
-    fs::write(&tmp_salt, salt_bytes)
-        .map_err(|_| AppError::DatabaseError("Lỗi ghi file Salt tạm".into()))?;
+    fs::write(&tmp_db, &db_bytes)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi ghi file DB tạm: {}", e)))?;
+    if let Err(e) = fs::write(&tmp_salt, &salt_bytes) {
+        let _ = fs::remove_file(&tmp_db);
+        return Err(AppError::DatabaseError(format!("Lỗi ghi file Salt tạm: {}", e)));
+    }
+
+    // Tạo bản sao lưu an toàn trước khi rename để tránh hỏng dữ liệu nửa chừng
+    let bak_db = path.with_extension("db.bak");
+    let bak_salt = salt_path.with_extension("salt.bak");
+
+    if path.exists() {
+        let _ = fs::copy(&path, &bak_db);
+    }
+    if salt_path.exists() {
+        let _ = fs::copy(&salt_path, &bak_salt);
+    }
 
     if let Err(e) = fs::rename(&tmp_db, &path) {
         let _ = fs::remove_file(&tmp_db);
         let _ = fs::remove_file(&tmp_salt);
+        let _ = fs::remove_file(&bak_db);
+        let _ = fs::remove_file(&bak_salt);
         return Err(AppError::DatabaseError(format!("Lỗi restore DB: {}", e)));
     }
     if let Err(e) = fs::rename(&tmp_salt, &salt_path) {
+        if bak_db.exists() {
+            let _ = fs::copy(&bak_db, &path);
+        }
         let _ = fs::remove_file(&tmp_salt);
-        return Err(AppError::DatabaseError(format!("Lỗi restore Salt: {}", e)));
+        let _ = fs::remove_file(&bak_db);
+        let _ = fs::remove_file(&bak_salt);
+        return Err(AppError::DatabaseError(format!(
+            "Lỗi restore Salt, đã rollback: {}",
+            e
+        )));
     }
+
+    let _ = fs::remove_file(&bak_db);
+    let _ = fs::remove_file(&bak_salt);
 
     Ok(())
 }
-
