@@ -41,7 +41,19 @@ describe('Dashboard Component', () => {
     expect(elements.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders mobile navigation bar', async () => {
+  it('renders mobile navigation bar when on mobile', async () => {
+    window.innerWidth = 500;
+    window.matchMedia = vi.fn().mockImplementation(query => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
     render(<Dashboard onLock={() => {}} />);
     expect(await screen.findByRole('navigation', { name: 'Mobile Navigation' })).toBeInTheDocument();
   });
