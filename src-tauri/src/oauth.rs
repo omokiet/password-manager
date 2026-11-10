@@ -89,13 +89,30 @@ pub fn parse_oauth_callback(request_line: &str) -> Result<String> {
 }
 
 /// Lắng nghe trên cổng loopback cục bộ để nhận redirect OAuth code từ trình duyệt.
-/// Tại sao: Dùng cổng ngẫu nhiên 127.0.0.1:0 tránh đụng độ port với các ứng dụng khác.
-pub fn listen_for_auth_code(listener: TcpListener) -> Result<String> {
-    listener.set_nonblocking(false)
+/// Tại sao: Dùng cổng ngẫu nhiên 127.0.0.1:0 tránh đụng độ port, kết hợp non-blocking polling
+/// với timeout tránh ứng dụng bị treo vô hạn nếu người dùng hủy đăng nhập giữa chừng.
+pub fn listen_for_auth_code(listener: TcpListener, timeout_secs: u64) -> Result<String> {
+    listener.set_nonblocking(true)
         .map_err(|e| AppError::OAuthError(format!("Lỗi cấu hình socket: {}", e)))?;
 
-    let (mut stream, _) = listener.accept()
-        .map_err(|e| AppError::OAuthError(format!("Không nhận được kết nối từ trình duyệt: {}", e)))?;
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(timeout_secs);
+
+    let (mut stream, _) = loop {
+        match listener.accept() {
+            Ok(res) => break res,
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                if start.elapsed() > timeout {
+                    return Err(AppError::OAuthError("Quá thời gian chờ ủy quyền từ Google (timeout)".into()));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            Err(e) => return Err(AppError::OAuthError(format!("Lỗi chờ kết nối: {}", e))),
+        }
+    };
+
+    let _ = stream.set_nonblocking(false);
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
 
     let mut buffer = [0u8; 2048];
     let bytes_read = stream.read(&mut buffer)

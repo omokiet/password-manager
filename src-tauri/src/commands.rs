@@ -1,11 +1,23 @@
 use std::fs;
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::SystemTime;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::crypto::{derive_key, generate_salt};
 use crate::db::{create_vault as db_create_vault, open_vault as db_open_vault};
 use crate::error::{AppError, Result};
+use crate::gdrive::{
+    delete_stored_auth, download_file, format_utc_timestamp, get_fresh_access_token,
+    list_appdata_backups, load_stored_auth, save_stored_auth, upload_to_appdata,
+    validate_cloud_backup_payload, CloudBackupItem, DEFAULT_CLIENT_ID,
+};
+use crate::oauth::{
+    build_auth_url, exchange_code_for_tokens, generate_pkce_pair, listen_for_auth_code,
+    StoredGoogleAuth,
+};
 
 const VAULT_FILENAME: &str = "vault.db";
 
@@ -173,6 +185,14 @@ pub fn change_master_password(
 // CRUD Commands cho Entries
 // ==========================================
 
+fn ensure_vault_unlocked(state: &State<'_, AppState>) -> Result<()> {
+    let conn = state.db_conn.lock().unwrap();
+    if conn.is_none() {
+        return Err(AppError::DatabaseError("Vault đang bị khóa".into()));
+    }
+    Ok(())
+}
+
 fn get_connection<'a>(
     state: &'a State<'_, AppState>,
 ) -> Result<std::sync::MutexGuard<'a, Option<rusqlite::Connection>>> {
@@ -334,6 +354,200 @@ pub fn import_backup(
 
     let _ = fs::remove_file(&bak_db);
     let _ = fs::remove_file(&bak_salt);
+
+    Ok(())
+}
+
+// ==========================================
+// Google Drive Cloud Backup & Restore
+// ==========================================
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GDriveStatusResponse {
+    pub is_connected: bool,
+    pub connected_at: Option<i64>,
+    pub client_id: Option<String>,
+}
+
+/// Khởi chạy luồng xác thực Google Drive OAuth 2.0 PKCE và mở trình duyệt hệ thống.
+#[tauri::command]
+pub async fn gdrive_start_auth(client_id: Option<String>, app: AppHandle) -> Result<()> {
+    let cid = client_id
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
+
+    let (verifier, challenge) = generate_pkce_pair();
+
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| AppError::OAuthError(format!("Không thể mở cổng loopback: {}", e)))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| AppError::OAuthError(format!("Không lấy được port cục bộ: {}", e)))?
+        .port();
+
+    let redirect_uri = format!("http://127.0.0.1:{}/oauth/callback", port);
+    let auth_url = build_auth_url(&cid, &redirect_uri, &challenge);
+
+    app.opener()
+        .open_url(&auth_url, None::<&str>)
+        .map_err(|e| AppError::OAuthError(format!("Không thể mở trình duyệt: {}", e)))?;
+
+    let code = tauri::async_runtime::spawn_blocking(move || {
+        listen_for_auth_code(listener, 180)
+    })
+    .await
+    .map_err(|e| AppError::OAuthError(format!("Lỗi luồng OAuth listener: {}", e)))??;
+
+    let tokens = exchange_code_for_tokens(&cid, &code, &verifier, &redirect_uri).await?;
+
+    let refresh_token = tokens.refresh_token.clone().ok_or_else(|| {
+        AppError::OAuthError("Google không trả về Refresh Token. Vui lòng thử lại.".into())
+    })?;
+
+    let now_secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let stored = StoredGoogleAuth {
+        refresh_token,
+        client_id: cid,
+        connected_at: now_secs,
+    };
+
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::DatabaseError("Không thể lấy thư mục dữ liệu ứng dụng".into()))?;
+
+    save_stored_auth(&data_dir, &stored)?;
+
+    Ok(())
+}
+
+/// Lấy trạng thái kết nối Google Drive hiện tại của ứng dụng.
+#[tauri::command]
+pub fn gdrive_get_status(app: AppHandle) -> Result<GDriveStatusResponse> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::DatabaseError("Không thể lấy thư mục dữ liệu ứng dụng".into()))?;
+
+    match load_stored_auth(&data_dir)? {
+        Some(auth) => Ok(GDriveStatusResponse {
+            is_connected: true,
+            connected_at: Some(auth.connected_at),
+            client_id: Some(auth.client_id),
+        }),
+        None => Ok(GDriveStatusResponse {
+            is_connected: false,
+            connected_at: None,
+            client_id: None,
+        }),
+    }
+}
+
+/// Ngắt kết nối và xóa refresh token khỏi thiết bị.
+#[tauri::command]
+pub fn gdrive_disconnect(app: AppHandle) -> Result<()> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::DatabaseError("Không thể lấy thư mục dữ liệu ứng dụng".into()))?;
+
+    delete_stored_auth(&data_dir)?;
+    Ok(())
+}
+
+/// Tạo bản sao lưu đã mã hóa và tải lên không gian appDataFolder của người dùng trên Google Drive.
+/// Tại sao: Chỉ tải dữ liệu đã mã hóa (Zero-Knowledge Invariant) và yêu cầu vault mở khóa
+/// để xác nhận người dùng sở hữu quyền hợp pháp trước khi tạo backup.
+#[tauri::command]
+pub async fn gdrive_upload_backup(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String> {
+    ensure_vault_unlocked(&state)?;
+
+    let path = resolve_vault_path(&app)?;
+    let salt_path = get_salt_path(&path);
+
+    if !path.exists() || !salt_path.exists() {
+        return Err(AppError::DatabaseError("Không tìm thấy dữ liệu Vault để sao lưu".into()));
+    }
+
+    let db_bytes = fs::read(&path)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi đọc DB: {}", e)))?;
+    let salt_bytes = fs::read(&salt_path)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi đọc Salt: {}", e)))?;
+
+    let backup = BackupData {
+        db: hex::encode(db_bytes),
+        salt: hex::encode(salt_bytes),
+    };
+
+    let backup_json = serde_json::to_string(&backup)
+        .map_err(|e| AppError::DatabaseError(format!("Lỗi tạo backup: {}", e)))?;
+
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::DatabaseError("Không thể lấy thư mục dữ liệu ứng dụng".into()))?;
+
+    let access_token = get_fresh_access_token(&data_dir).await?;
+
+    let now_secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let filename = format!("vault_backup_{}.vaultbak", format_utc_timestamp(now_secs));
+
+    let file_id = upload_to_appdata(&access_token, &filename, backup_json.as_bytes()).await?;
+
+    Ok(file_id)
+}
+
+/// Lấy danh sách các bản sao lưu trong không gian appDataFolder.
+#[tauri::command]
+pub async fn gdrive_list_backups(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<CloudBackupItem>> {
+    ensure_vault_unlocked(&state)?;
+
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::DatabaseError("Không thể lấy thư mục dữ liệu ứng dụng".into()))?;
+
+    let access_token = get_fresh_access_token(&data_dir).await?;
+
+    list_appdata_backups(&access_token).await
+}
+
+/// Tải bản sao lưu từ Google Drive và thực hiện thay thế nguyên tử với cơ sở dữ liệu hiện tại.
+/// Tại sao: Kiểm tra tính toàn vẹn và JSON trước khi ghi đè để bảo vệ cơ sở dữ liệu
+/// khỏi rủi ro đứt đoạn kết nối mạng.
+#[tauri::command]
+pub async fn gdrive_restore_backup(
+    file_id: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<()> {
+    ensure_vault_unlocked(&state)?;
+
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::DatabaseError("Không thể lấy thư mục dữ liệu ứng dụng".into()))?;
+
+    let access_token = get_fresh_access_token(&data_dir).await?;
+
+    let content = download_file(&access_token, &file_id).await?;
+
+    validate_cloud_backup_payload(&content)?;
+
+    import_backup(content, app, state)?;
 
     Ok(())
 }

@@ -5,6 +5,7 @@ pub mod commands;
 pub mod crypto;
 pub mod db;
 pub mod error;
+pub mod gdrive;
 pub mod models;
 pub mod oauth;
 
@@ -43,6 +44,12 @@ pub fn run() {
             commands::export_backup,
             commands::import_backup,
             commands::read_file_content,
+            commands::gdrive_start_auth,
+            commands::gdrive_get_status,
+            commands::gdrive_disconnect,
+            commands::gdrive_upload_backup,
+            commands::gdrive_list_backups,
+            commands::gdrive_restore_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
