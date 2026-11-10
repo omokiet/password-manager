@@ -9,6 +9,12 @@ pub enum AppError {
     #[error("Lỗi cơ sở dữ liệu: {0}")]
     DatabaseError(String),
 
+    #[error("Lỗi xác thực OAuth: {0}")]
+    OAuthError(String),
+
+    #[error("Lỗi mạng/API: {0}")]
+    NetworkError(String),
+
     #[error("Vault đã tồn tại")]
     VaultAlreadyExists,
 }
