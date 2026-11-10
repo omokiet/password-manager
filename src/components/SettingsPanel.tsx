@@ -13,7 +13,6 @@ import {
   CloudUpload,
   RefreshCw,
   LogOut,
-  CheckCircle2,
   AlertTriangle,
   RotateCw,
 } from 'lucide-react';
@@ -86,6 +85,19 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
     } finally {
       setIsConnectingGDrive(false);
     }
+  };
+
+  const handleCancelAuth = async () => {
+    if (isConnectingGDrive) {
+      try {
+        await invoke('gdrive_cancel_auth');
+      } catch (err) {
+        console.error('Cancel auth error', err);
+      }
+      setIsConnectingGDrive(false);
+      showToast('Đã hủy đăng nhập');
+    }
+    setShowGuideModal(false);
   };
 
   const handleDisconnectGDrive = async () => {
@@ -348,63 +360,65 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
         {/* Google Drive Cloud Backup Section */}
         <div className="p-1.5 rounded-[2.5rem] bg-white/[0.02] border border-white/5 shadow-2xl">
           <div className="bg-[#0a0a0a]/60 backdrop-blur-3xl rounded-[calc(2.5rem-0.375rem)] p-8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] border border-white/5 space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-white/5">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <div className="flex items-center justify-between pb-4 border-b border-white/5 gap-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 shrink-0">
                   <Cloud size={18} />
                 </div>
-                <div>
-                  <h3 className="font-medium text-white">Sao lưu Đám mây (Google Drive)</h3>
+                <div className="min-w-0">
+                  <h3 className="font-medium text-white truncate">Sao lưu Đám mây (Google Drive)</h3>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Lưu trữ bản sao lưu đã mã hóa vào thư mục ẩn an toàn của bạn.
+                    Lưu trữ bản sao lưu mã hóa vào thư mục ẩn riêng biệt.
                   </p>
                 </div>
               </div>
 
               {gdriveStatus?.is_connected ? (
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full font-medium">
-                    <CheckCircle2 size={12} /> Đã kết nối
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full font-medium whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Đã kết nối
                   </span>
                   <button
                     type="button"
                     onClick={handleDisconnectGDrive}
                     disabled={status === 'loading'}
-                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-white/5 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
+                    className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-white/5 rounded-full transition-colors cursor-pointer border border-transparent hover:border-red-500/20"
                     title="Ngắt kết nối Google Drive"
                   >
-                    <LogOut size={16} />
+                    <LogOut size={15} />
                   </button>
                 </div>
               ) : (
-                <span className="text-xs text-zinc-500 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full font-medium">
+                <span className="text-xs text-zinc-500 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full font-medium shrink-0 whitespace-nowrap">
                   Chưa kết nối
                 </span>
               )}
             </div>
 
             {!gdriveStatus?.is_connected ? (
-              <div className="space-y-4">
+              <div className="space-y-4 pt-1">
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Kết nối tài khoản Google cá nhân để sao lưu file mã hóa vào thư mục ẩn (<code className="text-blue-400 font-mono text-[11px]">appDataFolder</code>). Bản sao lưu không xuất hiện trên Google Drive web, an toàn tuyệt đối và không ai có thể đọc được ngoài bạn.
+                  Sao lưu an toàn vào thư mục ẩn (<code className="text-zinc-300 font-mono text-[11px] bg-white/5 px-1.5 py-0.5 rounded">appDataFolder</code>) trên Google Drive của bạn. File mã hóa không hiển thị trên Drive web và chỉ có thể mở bằng mật khẩu chủ của bạn.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowGuideModal(true)}
                   disabled={status === 'loading' || isConnectingGDrive}
-                  className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed"
+                  className="w-full px-6 py-4 bg-white text-black hover:bg-zinc-200 disabled:opacity-50 font-medium rounded-2xl transition-all active:scale-[0.99] flex items-center justify-center gap-2.5 cursor-pointer"
                 >
-                  <Cloud size={18} /> {isConnectingGDrive ? 'Đang kết nối...' : 'Kết nối Google Drive'}
+                  <Cloud size={18} />
+                  {isConnectingGDrive ? 'Đang kết nối...' : 'Kết nối Google Drive'}
                 </button>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="flex gap-3">
+              <div className="space-y-5 pt-1">
+                <div className="flex gap-2.5">
                   <button
                     type="button"
                     onClick={handleUploadCloudBackup}
                     disabled={status === 'loading' || isBackingUpGDrive}
-                    className="flex-1 px-6 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed"
+                    className="flex-1 px-5 py-3.5 bg-white text-black hover:bg-zinc-200 disabled:opacity-50 font-medium rounded-2xl transition-all active:scale-[0.99] flex items-center justify-center gap-2.5 cursor-pointer"
                   >
                     <CloudUpload size={18} />
                     {isBackingUpGDrive ? 'Đang tải lên...' : 'Sao lưu ngay lên Google Drive'}
@@ -413,32 +427,38 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
                     type="button"
                     onClick={fetchCloudBackups}
                     disabled={isLoadingBackups}
-                    className="px-4 py-4 bg-white/5 hover:bg-white/10 text-zinc-300 rounded-2xl border border-white/10 transition-colors"
+                    className="px-4 py-3.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-2xl border border-white/10 transition-colors cursor-pointer flex items-center justify-center"
                     title="Làm mới danh sách"
                   >
                     <RotateCw size={16} className={isLoadingBackups ? 'animate-spin' : ''} />
                   </button>
                 </div>
 
-                <div className="space-y-3">
-                  <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    Các bản sao lưu trên Cloud
-                  </h4>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.15em]">
+                      Bản sao lưu trên Cloud
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">
+                      {cloudBackups.length} bản lưu
+                    </span>
+                  </div>
 
                   {isLoadingBackups ? (
-                    <div className="p-8 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
-                      <RefreshCw size={14} className="animate-spin" /> Đang tải danh sách bản sao lưu...
+                    <div className="p-6 text-center text-xs text-zinc-500 flex items-center justify-center gap-2 bg-white/[0.01] border border-white/5 rounded-2xl">
+                      <RefreshCw size={13} className="animate-spin text-zinc-400" />
+                      <span>Đang kiểm tra đám mây...</span>
                     </div>
                   ) : cloudBackups.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-zinc-500 bg-white/[0.02] border border-white/5 rounded-2xl">
-                      Chưa có bản sao lưu nào trên Google Drive. Hãy tạo bản sao lưu đầu tiên!
+                    <div className="p-6 text-center text-xs text-zinc-500 bg-white/[0.01] border border-white/5 rounded-2xl">
+                      Chưa có bản sao lưu nào. Hãy bấm "Sao lưu ngay" để tạo bản đầu tiên.
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                       {cloudBackups.map((b) => (
                         <div
                           key={b.id}
-                          className="flex items-center justify-between p-3.5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 rounded-2xl transition-colors"
+                          className="flex items-center justify-between p-3.5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 rounded-2xl transition-colors group"
                         >
                           <div className="min-w-0 pr-3">
                             <p className="text-xs font-mono text-zinc-200 truncate">{b.name}</p>
@@ -453,7 +473,7 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
                               setShowRestoreConfirmModal(true);
                             }}
                             disabled={isRestoringGDrive}
-                            className="px-3.5 py-1.5 text-xs font-medium text-purple-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-xl transition-all active:scale-95 shrink-0 cursor-pointer"
+                            className="px-3.5 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all active:scale-95 shrink-0 cursor-pointer"
                           >
                             Khôi phục
                           </button>
@@ -550,7 +570,7 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
       {/* Google Drive Bypass Guide Modal */}
       <GoogleDriveGuideModal
         isOpen={showGuideModal}
-        onClose={() => setShowGuideModal(false)}
+        onClose={handleCancelAuth}
         onConfirm={handleConfirmGuide}
         isLoading={isConnectingGDrive}
       />
