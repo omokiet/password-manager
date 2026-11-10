@@ -32,36 +32,10 @@ export default function App() {
       }
     };
 
-    const handleWindowBlur = () => {
-      setIsPrivacyCoverVisible(true);
-      if (!backgroundTimeRef.current) {
-        backgroundTimeRef.current = Date.now();
-      }
-    };
-
-    const handleWindowFocus = async () => {
-      const bgTime = backgroundTimeRef.current;
-      backgroundTimeRef.current = null;
-      
-      if (isUnlocked && bgTime && Date.now() - bgTime >= BACKGROUND_GRACE_PERIOD_MS) {
-        try {
-          await invoke('lock_vault');
-        } catch (e) {
-          console.error('Failed to lock on window focus timeout:', e);
-        }
-        setIsUnlocked(false);
-      }
-      setIsPrivacyCoverVisible(false);
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
     };
   }, [isUnlocked]);
 
