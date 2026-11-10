@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ShieldAlert, KeyRound, Download, DatabaseBackup, Trash2, ArrowLeft, Home } from 'lucide-react';
+import { ShieldAlert, KeyRound, Download, DatabaseBackup, Trash2, ArrowLeft, Home, X } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 
 interface Props {
@@ -14,6 +14,8 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
   const [newPassword, setNewPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [confirmInput, setConfirmInput] = useState('');
 
   const getStrength = (pwd: string) => {
     let score = 0;
@@ -72,17 +74,17 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
   };
 
   const handleDeleteAll = async () => {
-    const confirmText = prompt('CẢNH BÁO: Hành động này sẽ xóa VĨNH VIỄN toàn bộ mật khẩu. Việc này không thể hoàn tác.\n\nGõ chữ CONFIRM để xác nhận:');
-    if (confirmText === 'CONFIRM') {
-      setStatus('loading');
-      try {
-        await invoke('delete_all_entries');
-        setStatus('success');
-        showToast('Đã xóa toàn bộ mật khẩu!');
-      } catch (err: any) {
-        setStatus('error');
-        setErrorMsg(err.toString());
-      }
+    if (confirmInput !== 'CONFIRM') return;
+    setStatus('loading');
+    try {
+      await invoke('delete_all_entries');
+      setStatus('success');
+      showToast('Đã xóa toàn bộ mật khẩu!');
+      setShowDeleteAllModal(false);
+      setConfirmInput('');
+    } catch (err: any) {
+      setStatus('error');
+      setErrorMsg(err.toString());
     }
   };
 
@@ -231,7 +233,10 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
             <div className="flex gap-4">
               <button 
                 type="button"
-                onClick={handleDeleteAll}
+                onClick={() => {
+                  setConfirmInput('');
+                  setShowDeleteAllModal(true);
+                }}
                 disabled={status === 'loading'}
                 className="w-full px-6 py-4 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-50 text-red-400 font-medium rounded-2xl transition-all border border-red-500/20 active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:cursor-not-allowed"
               >
@@ -241,6 +246,57 @@ export default function SettingsPanel({ onBack, onHome, showToast }: Props) {
           </div>
         </div>
       </div>
+
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-[#0f0f0f] border border-red-500/20 rounded-3xl p-6 shadow-2xl relative space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <div className="flex items-center gap-3 text-red-400 font-medium">
+                <Trash2 size={20} />
+                <span>Xác nhận xóa vĩnh viễn</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowDeleteAllModal(false)}
+                className="text-zinc-500 hover:text-white p-1.5 rounded-lg hover:bg-white/5"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              Hành động này sẽ xóa <strong className="text-red-400">toàn bộ mật khẩu</strong> trong Vault và không thể hoàn tác. Nhập <code className="bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded font-mono text-xs">CONFIRM</code> để tiếp tục:
+            </p>
+
+            <input 
+              type="text" 
+              value={confirmInput}
+              onChange={(e) => setConfirmInput(e.target.value)}
+              placeholder="Nhập CONFIRM"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 font-mono text-sm"
+              autoFocus
+            />
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteAllModal(false)}
+                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium rounded-xl transition-colors text-sm"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAll}
+                disabled={confirmInput !== 'CONFIRM' || status === 'loading'}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 disabled:opacity-30 disabled:hover:bg-red-500 text-white font-medium rounded-xl transition-colors text-sm cursor-pointer disabled:cursor-not-allowed"
+              >
+                {status === 'loading' ? 'Đang xóa...' : 'Xóa tất cả'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

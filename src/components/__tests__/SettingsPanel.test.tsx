@@ -80,4 +80,33 @@ describe('SettingsPanel Component', () => {
       expect(mockInvoke).not.toHaveBeenCalledWith('export_backup', expect.anything());
     });
   });
+
+  it('shows in-app confirmation modal and deletes all entries only when CONFIRM is typed', async () => {
+    mockInvoke.mockResolvedValue(undefined);
+
+    render(<SettingsPanel onBack={mockOnBack} onHome={mockOnHome} showToast={mockShowToast} />);
+
+    const openDeleteBtn = screen.getByRole('button', { name: /xóa toàn bộ mật khẩu/i });
+    await userEvent.click(openDeleteBtn);
+
+    expect(screen.getByText('Xác nhận xóa vĩnh viễn')).toBeInTheDocument();
+
+    const deleteBtn = screen.getByRole('button', { name: /xóa tất cả/i });
+    expect(deleteBtn).toBeDisabled();
+
+    const input = screen.getByPlaceholderText('Nhập CONFIRM');
+    await userEvent.type(input, 'WRONG');
+    expect(deleteBtn).toBeDisabled();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'CONFIRM');
+    expect(deleteBtn).toBeEnabled();
+
+    await userEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith('delete_all_entries');
+      expect(mockShowToast).toHaveBeenCalledWith('Đã xóa toàn bộ mật khẩu!');
+    });
+  });
 });
