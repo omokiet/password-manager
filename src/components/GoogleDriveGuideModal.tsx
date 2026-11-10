@@ -21,7 +21,6 @@ export const GoogleDriveGuideModal: React.FC<GoogleDriveGuideModalProps> = ({
       <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden p-6 text-zinc-100">
         <button
           onClick={onClose}
-          disabled={isLoading}
           className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors hover:bg-zinc-800"
           aria-label="Đóng"
         >
@@ -74,10 +73,9 @@ export const GoogleDriveGuideModal: React.FC<GoogleDriveGuideModalProps> = ({
         <div className="flex gap-3 justify-end">
           <button
             onClick={onClose}
-            disabled={isLoading}
-            className="px-4 py-2.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-xl transition-colors disabled:opacity-50"
+            className="px-4 py-2.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
           >
-            Hủy
+            {isLoading ? 'Hủy đăng nhập' : 'Hủy'}
           </button>
           <button
             onClick={onConfirm}

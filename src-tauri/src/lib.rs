@@ -45,6 +45,7 @@ pub fn run() {
             commands::import_backup,
             commands::read_file_content,
             commands::gdrive_start_auth,
+            commands::gdrive_cancel_auth,
             commands::gdrive_get_status,
             commands::gdrive_disconnect,
             commands::gdrive_upload_backup,

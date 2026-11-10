@@ -35,5 +35,8 @@ src-tauri/target/
 *.tmp
 *.vaultbak
 .env
+.env.*
+!.env.example
+*.secret
 .agents/*
 HANDOFF.md

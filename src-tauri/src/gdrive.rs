@@ -6,7 +6,14 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AppError, Result};
 use crate::oauth::{refresh_access_token, StoredGoogleAuth};
 
-pub const DEFAULT_CLIENT_ID: &str = "738491829304-pmvaultsecuresyncapp.apps.googleusercontent.com";
+pub const DEFAULT_CLIENT_ID: &str = match option_env!("GDRIVE_CLIENT_ID") {
+    Some(val) => val,
+    None => "",
+};
+pub const DEFAULT_CLIENT_SECRET: &str = match option_env!("GDRIVE_CLIENT_SECRET") {
+    Some(val) => val,
+    None => "",
+};
 pub const GDRIVE_TOKEN_FILE: &str = "gdrive_token.json";
 
 /// Định dạng Unix timestamp (giây) thành chuỗi ngày giờ UTC `YYYYMMDD_HHmmss`.
@@ -170,7 +177,13 @@ pub async fn get_fresh_access_token(app_data_dir: &Path) -> Result<String> {
     let auth = load_stored_auth(app_data_dir)?
         .ok_or_else(|| AppError::OAuthError("Chưa kết nối tài khoản Google Drive".into()))?;
 
-    let refreshed = refresh_access_token(&auth.client_id, &auth.refresh_token).await
+    let fallback_secret = if DEFAULT_CLIENT_SECRET.is_empty() {
+        None
+    } else {
+        Some(DEFAULT_CLIENT_SECRET)
+    };
+    let secret = auth.client_secret.as_deref().or(fallback_secret);
+    let refreshed = refresh_access_token(&auth.client_id, secret, &auth.refresh_token).await
         .map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("invalid_grant") {

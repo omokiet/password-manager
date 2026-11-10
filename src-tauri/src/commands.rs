@@ -1,7 +1,8 @@
 use std::fs;
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
@@ -12,7 +13,7 @@ use crate::error::{AppError, Result};
 use crate::gdrive::{
     delete_stored_auth, download_file, format_utc_timestamp, get_fresh_access_token,
     list_appdata_backups, load_stored_auth, save_stored_auth, upload_to_appdata,
-    validate_cloud_backup_payload, CloudBackupItem, DEFAULT_CLIENT_ID,
+    validate_cloud_backup_payload, CloudBackupItem, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET,
 };
 use crate::oauth::{
     build_auth_url, exchange_code_for_tokens, generate_pkce_pair, listen_for_auth_code,
@@ -24,6 +25,7 @@ const VAULT_FILENAME: &str = "vault.db";
 pub struct AppState {
     pub db_conn: Mutex<Option<rusqlite::Connection>>,
     pub vault_path: Mutex<Option<PathBuf>>,
+    pub auth_canceller: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 impl Default for AppState {
@@ -31,6 +33,7 @@ impl Default for AppState {
         Self {
             db_conn: Mutex::new(None),
             vault_path: Mutex::new(None),
+            auth_canceller: Mutex::new(None),
         }
     }
 }
@@ -371,10 +374,20 @@ pub struct GDriveStatusResponse {
 
 /// Khởi chạy luồng xác thực Google Drive OAuth 2.0 PKCE và mở trình duyệt hệ thống.
 #[tauri::command]
-pub async fn gdrive_start_auth(client_id: Option<String>, app: AppHandle) -> Result<()> {
+pub async fn gdrive_start_auth(
+    client_id: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<()> {
     let cid = client_id
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string());
+
+    if cid.is_empty() {
+        return Err(AppError::OAuthError(
+            "Chưa cấu hình Google Client ID. Vui lòng kiểm tra file .env hoặc cấu hình build.".into(),
+        ));
+    }
 
     let (verifier, challenge) = generate_pkce_pair();
 
@@ -388,17 +401,37 @@ pub async fn gdrive_start_auth(client_id: Option<String>, app: AppHandle) -> Res
     let redirect_uri = format!("http://127.0.0.1:{}/oauth/callback", port);
     let auth_url = build_auth_url(&cid, &redirect_uri, &challenge);
 
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    *state.auth_canceller.lock().unwrap() = Some(cancel_flag.clone());
+
     app.opener()
         .open_url(&auth_url, None::<&str>)
         .map_err(|e| AppError::OAuthError(format!("Không thể mở trình duyệt: {}", e)))?;
 
-    let code = tauri::async_runtime::spawn_blocking(move || {
-        listen_for_auth_code(listener, 180)
+    let flag_clone = cancel_flag.clone();
+    let code_res = tauri::async_runtime::spawn_blocking(move || {
+        listen_for_auth_code(listener, 180, flag_clone)
     })
     .await
-    .map_err(|e| AppError::OAuthError(format!("Lỗi luồng OAuth listener: {}", e)))??;
+    .map_err(|e| AppError::OAuthError(format!("Lỗi luồng OAuth listener: {}", e)))?;
 
-    let tokens = exchange_code_for_tokens(&cid, &code, &verifier, &redirect_uri).await?;
+    *state.auth_canceller.lock().unwrap() = None;
+
+    let code = code_res?;
+
+    let secret = if DEFAULT_CLIENT_SECRET.is_empty() {
+        None
+    } else {
+        Some(DEFAULT_CLIENT_SECRET)
+    };
+
+    let tokens = exchange_code_for_tokens(
+        &cid,
+        secret,
+        &code,
+        &verifier,
+        &redirect_uri,
+    ).await?;
 
     let refresh_token = tokens.refresh_token.clone().ok_or_else(|| {
         AppError::OAuthError("Google không trả về Refresh Token. Vui lòng thử lại.".into())
@@ -412,6 +445,7 @@ pub async fn gdrive_start_auth(client_id: Option<String>, app: AppHandle) -> Res
     let stored = StoredGoogleAuth {
         refresh_token,
         client_id: cid,
+        client_secret: secret.map(|s| s.to_string()),
         connected_at: now_secs,
     };
 
@@ -422,6 +456,15 @@ pub async fn gdrive_start_auth(client_id: Option<String>, app: AppHandle) -> Res
 
     save_stored_auth(&data_dir, &stored)?;
 
+    Ok(())
+}
+
+/// Hủy luồng chờ ủy quyền OAuth nếu người dùng bấm Hủy.
+#[tauri::command]
+pub fn gdrive_cancel_auth(state: State<'_, AppState>) -> Result<()> {
+    if let Some(flag) = state.auth_canceller.lock().unwrap().take() {
+        flag.store(true, Ordering::Relaxed);
+    }
     Ok(())
 }
 

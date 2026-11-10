@@ -54,3 +54,12 @@ fn test_parse_oauth_callback_error() {
     assert!(err.to_string().contains("access_denied"));
 }
 
+#[test]
+fn test_listen_for_auth_code_cancel() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let result = tauri_app_lib::oauth::listen_for_auth_code(listener, 5, cancel_flag);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("hủy"));
+}
+

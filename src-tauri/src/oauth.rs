@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
@@ -26,6 +28,7 @@ pub struct OAuthTokenResponse {
 pub struct StoredGoogleAuth {
     pub refresh_token: String,
     pub client_id: String,
+    pub client_secret: Option<String>,
     pub connected_at: i64,
 }
 
@@ -90,8 +93,12 @@ pub fn parse_oauth_callback(request_line: &str) -> Result<String> {
 
 /// Lắng nghe trên cổng loopback cục bộ để nhận redirect OAuth code từ trình duyệt.
 /// Tại sao: Dùng cổng ngẫu nhiên 127.0.0.1:0 tránh đụng độ port, kết hợp non-blocking polling
-/// với timeout tránh ứng dụng bị treo vô hạn nếu người dùng hủy đăng nhập giữa chừng.
-pub fn listen_for_auth_code(listener: TcpListener, timeout_secs: u64) -> Result<String> {
+/// với timeout và cờ AtomicBool cancel_flag để người dùng có thể bấm Hủy bất kỳ lúc nào mà không bị treo UI.
+pub fn listen_for_auth_code(
+    listener: TcpListener,
+    timeout_secs: u64,
+    cancel_flag: Arc<AtomicBool>,
+) -> Result<String> {
     listener.set_nonblocking(true)
         .map_err(|e| AppError::OAuthError(format!("Lỗi cấu hình socket: {}", e)))?;
 
@@ -99,6 +106,10 @@ pub fn listen_for_auth_code(listener: TcpListener, timeout_secs: u64) -> Result<
     let timeout = std::time::Duration::from_secs(timeout_secs);
 
     let (mut stream, _) = loop {
+        if cancel_flag.load(Ordering::Relaxed) {
+            return Err(AppError::OAuthError("Người dùng đã hủy đăng nhập".into()));
+        }
+
         match listener.accept() {
             Ok(res) => break res,
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -150,6 +161,7 @@ pub fn listen_for_auth_code(listener: TcpListener, timeout_secs: u64) -> Result<
 /// Trao đổi authorization code và code_verifier lấy Access Token & Refresh Token từ Google.
 pub async fn exchange_code_for_tokens(
     client_id: &str,
+    client_secret: Option<&str>,
     code: &str,
     code_verifier: &str,
     redirect_uri: &str,
@@ -157,6 +169,9 @@ pub async fn exchange_code_for_tokens(
     let client = reqwest::Client::new();
     let mut params = HashMap::new();
     params.insert("client_id", client_id);
+    if let Some(secret) = client_secret {
+        params.insert("client_secret", secret);
+    }
     params.insert("code", code);
     params.insert("code_verifier", code_verifier);
     params.insert("redirect_uri", redirect_uri);
@@ -185,11 +200,15 @@ pub async fn exchange_code_for_tokens(
 /// Làm mới Access Token bằng Refresh Token khi Access Token hết hạn sau 1 giờ.
 pub async fn refresh_access_token(
     client_id: &str,
+    client_secret: Option<&str>,
     refresh_token: &str,
 ) -> Result<OAuthTokenResponse> {
     let client = reqwest::Client::new();
     let mut params = HashMap::new();
     params.insert("client_id", client_id);
+    if let Some(secret) = client_secret {
+        params.insert("client_secret", secret);
+    }
     params.insert("refresh_token", refresh_token);
     params.insert("grant_type", "refresh_token");
 
