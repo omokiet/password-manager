@@ -24,9 +24,14 @@ Mật khẩu chủ không bao giờ lưu trên đĩa. Toàn bộ cơ sở dữ l
 - **Trường dữ liệu tùy biến**: Thêm trường văn bản, mật khẩu phụ, hoặc import file nhỏ (tối đa 10KB).
 - **Lịch sử mật khẩu**: Lưu trữ 5 mật khẩu cũ gần nhất cho mỗi mục.
 - **Kiểm tra độ mạnh (Health Dashboard)**: Phân tích mật khẩu yếu, dùng lặp lại, hoặc quá 90 ngày chưa đổi.
-- **Trao đổi dữ liệu Offline**:
-  - Export/Import file sao lưu mã hóa `.vaultbak`.
+- **Trao đổi & Sao lưu Dữ liệu**:
+  - Export/Import file sao lưu mã hóa `.vaultbak` cục bộ.
   - Quét mã QR mã hóa trực tiếp giữa Desktop và Mobile (xác thực bằng PIN 4 chữ số, giải mã AES-256-GCM trên RAM).
+  - **Sao lưu Đám mây Cá nhân (Google Drive Encrypted Backup)**:
+    - Sao lưu 1-chạm vào thư mục ẩn an toàn của người dùng (`appDataFolder`).
+    - Xác thực OAuth 2.0 PKCE trực tiếp với Google, không qua máy chủ trung gian.
+    - Zero-Knowledge: Chỉ tải lên bản sao lưu đã mã hóa hoàn toàn.
+    - Khôi phục nguyên tử (Atomic Restore Rollback) với cơ chế bảo vệ chống lỗi mạng.
 
 ---
 

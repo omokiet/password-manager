@@ -111,3 +111,8 @@ Bảng theo dõi các vấn đề kỹ thuật, lỗ hổng bảo mật, lỗi l
   - **Vị trí:** `src/desktop/DesktopDashboard.tsx`, `src/mobile/MobileDashboard.tsx`
   - **Trạng thái:** ĐÃ XỬ LÝ.
   - **Giải pháp:** Đã tạo component dùng chung `src/shared/components/EntryDetailForm.tsx`, giảm ròng 203 dòng code trùng lặp.
+
+- [x] **17. Sao lưu & Khôi phục Đám mây Cá nhân Google Drive Encrypted Cloud Backup (SPEC-002)**
+  - **Vị trí:** `src-tauri/src/oauth.rs`, `src-tauri/src/gdrive.rs`, `src-tauri/src/commands.rs`, `src/components/SettingsPanel.tsx`, `src/components/GoogleDriveGuideModal.tsx`
+  - **Trạng thái:** ĐÃ XỬ LÝ.
+  - **Giải pháp:** Triển khai theo quy trình Spec-Driven Development (SDD): OAuth 2.0 PKCE với local loopback listener nhận auth code, tải/lưu bản sao lưu mã hóa `.vaultbak` vào thư mục ẩn `appDataFolder`, kiểm tra tính toàn vẹn và khôi phục nguyên tử (atomic restore rollback). Tích hợp modal hướng dẫn vượt cảnh báo xác minh của Google trực tiếp trong ứng dụng.
