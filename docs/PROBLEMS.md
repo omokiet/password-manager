@@ -74,11 +74,10 @@ Bảng theo dõi các vấn đề kỹ thuật, lỗ hổng bảo mật, lỗi l
 
 ### Mức độ P0 / P1: Lỗi Nghiêm Trọng & Lỗ Hổng Bảo Mật Mới (Từ Ponytail Audit)
 
-- [ ] **11. useVault không cập nhật ID sau khi thêm entry mới, gây trùng lặp bản ghi khi sửa tiếp**
+- [x] **11. useVault không cập nhật ID sau khi thêm entry mới, gây trùng lặp bản ghi khi sửa tiếp**
   - **Vị trí:** `src/shared/hooks/useVault.ts:L106-L114`
-  - **Trạng thái:** CHƯA XỬ LÝ (Must Fix).
-  - **Vấn đề:** `add_entry` trả về entry có ID mới, nhưng hook không gán lại vào `selectedEntry`. ID vẫn rỗng trong state, nếu user sửa ngay sẽ bị insert thêm bản ghi trùng lặp.
-  - **Giải pháp:** `const saved = await invoke<PasswordEntry>('add_entry', { entry: selectedEntry }); setSelectedEntry(saved);`.
+  - **Trạng thái:** ĐÃ XỬ LÝ.
+  - **Giải pháp:** Cập nhật `selectedEntry` bằng object trả về từ `add_entry` và `update_entry`.
 
 - [ ] **12. Mất điện hoặc crash trong khi đổi Master Password làm hỏng vĩnh viễn khóa Vault**
   - **Vị trí:** `src-tauri/src/commands.rs:L147-L168`
@@ -96,20 +95,17 @@ Bảng theo dõi các vấn đề kỹ thuật, lỗ hổng bảo mật, lỗi l
 
 ### Mức độ P2 / P3: Cải Thiện UX & Trùng Lặp Code (Should Fix Từ Ponytail Audit)
 
-- [ ] **14. Màn hình Desktop bị che đen (Privacy Overlay) mỗi khi click sang cửa sổ khác**
+- [x] **14. Màn hình Desktop bị che đen (Privacy Overlay) mỗi khi click sang cửa sổ khác**
   - **Vị trí:** `src/App.tsx:L35-L40`
-  - **Trạng thái:** CHƯA XỬ LÝ (Should Fix).
-  - **Vấn đề:** Sự kiện `window.blur` kích hoạt `PrivacyOverlay`. Trên desktop, khi mở app song song với trình duyệt, click ra ngoài làm app bị che đen hoàn toàn.
-  - **Giải pháp:** Bỏ bắt sự kiện `window.blur`, chỉ kích hoạt che màn hình khi `document.visibilityState === 'hidden'` (vừa chống lộ snapshot khi chuyển app trên mobile, vừa giữ nguyên đa nhiệm trên desktop).
+  - **Trạng thái:** ĐÃ XỬ LÝ.
+  - **Giải pháp:** Bỏ bắt sự kiện `window.blur`, chỉ kích hoạt che màn hình khi `document.visibilityState === 'hidden'`.
 
-- [ ] **15. `window.prompt()` chặn thread và không hoạt động trên Mobile WebView**
+- [x] **15. `window.prompt()` chặn thread và không hoạt động trên Mobile WebView**
   - **Vị trí:** `src/components/SettingsPanel.tsx:L75-L87`
-  - **Trạng thái:** CHƯA XỬ LÝ (Should Fix).
-  - **Vấn đề:** Nút "Xóa toàn bộ mật khẩu" gọi `prompt()`. WebView Android trả về null im lặng nếu không có dialog handler tùy biến, khiến tính năng vô dụng trên mobile.
-  - **Giải pháp:** Dùng modal React nội bộ yêu cầu gõ "CONFIRM" như modal xác nhận xóa từng mục.
+  - **Trạng thái:** ĐÃ XỬ LÝ.
+  - **Giải pháp:** Thay bằng custom in-app React modal yêu cầu gõ chuỗi CONFIRM. Bổ sung unit test kiểm chứng.
 
-- [ ] **16. Trùng lặp hơn 500 dòng markup form chi tiết giữa DesktopDashboard và MobileDashboard**
+- [x] **16. Trùng lặp hơn 500 dòng markup form chi tiết giữa DesktopDashboard và MobileDashboard**
   - **Vị trí:** `src/desktop/DesktopDashboard.tsx`, `src/mobile/MobileDashboard.tsx`
-  - **Trạng thái:** CHƯA XỬ LÝ (Should Fix).
-  - **Vấn đề:** Toàn bộ JSX form nhập liệu, custom fields, history bị nhân bản nguyên vẹn ở 2 file 550 dòng, dễ dẫn đến lệch UI khi bảo trì.
-  - **Giải pháp:** Tách form chi tiết entry thành component dùng chung `src/shared/components/EntryDetailForm.tsx`.
+  - **Trạng thái:** ĐÃ XỬ LÝ.
+  - **Giải pháp:** Đã tạo component dùng chung `src/shared/components/EntryDetailForm.tsx`, giảm ròng 203 dòng code trùng lặp.
