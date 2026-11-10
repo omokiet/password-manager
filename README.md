@@ -1,56 +1,58 @@
-# Quản Lý Mật Khẩu Zero-Knowledge
+# Offline Zero-Knowledge Password Manager
 
-## Tổng Quan
-Một ứng dụng desktop quản lý mật khẩu offline hoàn toàn, được thiết kế chú trọng vào độ bảo mật cao và giao diện cao cấp. Ứng dụng sử dụng kiến trúc Zero-Knowledge: mật khẩu chủ (master password) không bao giờ được lưu lại trên ổ cứng. Toàn bộ dữ liệu được mã hóa cục bộ bằng AES-256-GCM và Argon2id.
+Ứng dụng quản lý mật khẩu cá nhân cục bộ, chạy hoàn toàn offline trên Desktop (Windows/macOS/Linux) và Mobile (Android Companion). 
 
-## Công Nghệ (Tech Stack)
-- Frontend: React 18, TypeScript, Tailwind CSS v4
-- Backend: Rust, Tauri v2
-- Database: SQLite với SQLCipher (thuộc tính `bundled-sqlcipher-vendored-openssl`)
-- Mã hóa: Argon2id (Key Derivation), AES-256-GCM (Mã hóa dữ liệu), Zeroize (Xóa sạch bộ nhớ)
+Mật khẩu chủ không bao giờ lưu trên đĩa. Toàn bộ cơ sở dữ liệu được mã hóa bằng SQLCipher và thuật toán phái sinh khóa Argon2id.
 
-## Kiến Trúc Bảo Mật
-- Zero-Knowledge: Mật khẩu chủ tuyệt đối không được lưu.
-- In-Memory Keys: Key mã hóa chỉ tồn tại trên RAM trong khoảng thời gian vault đang mở khóa.
-- Lưu Trữ An Toàn: File vault (`vault.db`) và salt (`vault.salt`) được lưu ngầm định an toàn trong thư mục `app_data_dir` của hệ điều hành.
-- Xóa Bộ Nhớ (Memory Sanitization): Key mã hóa và các struct nhạy cảm bị xóa hoàn toàn khỏi bộ nhớ RAM bằng thư viện `zeroize` ngay khi không còn sử dụng hoặc khi vault bị khóa.
+---
 
-## Các Tính Năng Cốt Lõi (v1.1.5)
-- **Quản lý Mật Khẩu (CRUD)**: Lưu trữ, chỉnh sửa, xóa và tạo mật khẩu ngẫu nhiên an toàn.
-- **Trường Dữ Liệu Tùy Chỉnh (Custom Fields)**: Thêm các trường Text (hỗ trợ nhập từ file) và Mật khẩu phụ động, không giới hạn.
-- **Hướng Dẫn Sử Dụng In-App**: Tích hợp sách hướng dẫn sử dụng ngay bên trong ứng dụng, thân thiện với người không chuyên.
-- **Phân loại Tab thông minh (Category & Favorite)**: Gõ "Tên danh mục" lúc tạo mật khẩu, ứng dụng tự động tạo ra một tab phân loại ở Sidebar. Mật khẩu đánh dấu sao (Favorite) luôn được ghim lên đầu.
-- **Lưu Trữ Lịch Sử**: Tự động lưu tối đa 5 lần đổi mật khẩu gần nhất của mỗi mục.
-- **Đổi Mật Khẩu Chủ & Wipe Data**: Cơ chế rekey dữ liệu an toàn trên SQLite. Tích hợp Danger Zone cho phép xóa vĩnh viễn toàn bộ dữ liệu khi cần.
-- **Sao Lưu & Khôi Phục Native**: Khôi phục (Restore) an toàn từ màn hình khóa. Hỗ trợ xuất (Export Backup) lưu trực tiếp ra file `.vaultbak` bằng chính hộp thoại lưu file của hệ điều hành (Native OS Dialog).
-- **Phân Tích Độ Mạnh Mật Khẩu**: Chấm Điểm Độ Mạnh, phát hiện mật khẩu yếu, trùng lặp hoặc đã quá hạn (>90 ngày). Cho phép click trực tiếp vào cảnh báo để chuyển nhanh sang trang sửa mật khẩu.
-- **Tìm Kiếm & Lọc**: Công cụ tìm kiếm tức thời theo tiêu đề hoặc lọc danh sách theo danh mục (Category).
-- **Tự Động Khóa & Xóa Clipboard**: Tự động lock vault sau 5 phút không hoạt động (hoặc khi thu nhỏ). Xóa sạch Clipboard sau 30 giây khi copy mật khẩu.
-- **Tiện Ích Nhanh**: Nhấn `Ctrl+C` (hoặc `Cmd+C`) để copy nhanh mật khẩu của mục đang chọn.
-- **Điều hướng dạng Stack**: Nút Trở Về (Back) và Trang Chủ (Home) mượt mà cho trải nghiệm liền mạch.
-- **Bảo Vệ Đa Luồng**: Chống khởi chạy nhiều phiên bản ứng dụng (Single-instance lock).
-- **CI/CD Tự Động**: Đóng gói tự động ra file `.exe` / `.msi` thông qua GitHub Actions khi tạo Tag mới.
+## Kiến trúc Bảo mật
 
-## Hướng Dẫn Cài Đặt
+- **Zero-Knowledge**: Master Password không ghi xuống file hay gửi qua mạng. Mất mật khẩu chủ đồng nghĩa mất toàn bộ dữ liệu.
+- **Key Derivation (Argon2id)**: Memory 64MB, Iterations 3, Parallelism 4, Salt 16-byte ngẫu nhiên chống Rainbow Table và tấn công GPU offline.
+- **Database Encryption**: Toàn bộ file SQLite (`vault.db`) được mã hóa mức block thông qua SQLCipher (`PRAGMA key`).
+- **Memory Zeroization**: Khóa giải mã và plaintext mật khẩu được bọc trong các struct thực thi `zeroize`. RAM được xóa sạch về `0x00` ngay khi drop hoặc khi vault bị khóa.
+- **Auto-lock**: Tự động khóa vault và xóa key khỏi RAM sau 5 phút không tương tác, hoặc khi app chuyển sang chế độ nền (60s grace period).
+- **Chống rò rỉ giao diện (Privacy Overlay)**: Tự động che mờ màn hình khi chuyển ứng dụng (chống chụp trộm màn hình trên App Switcher).
+- **Clipboard Sanitization**: Tự động xóa nội dung sao chép sau 30 giây.
 
-### Yêu cầu hệ thống
-- Node.js
-- Rust toolchain
-- Visual Studio Code với extension rust-analyzer và Tauri
-- Windows (Bắt buộc cài Strawberry Perl để build openssl/sqlcipher)
+---
 
-### Khởi chạy ứng dụng
-Cài đặt thư viện frontend:
+## Tính năng
+
+- **Quản lý mật khẩu**: Thêm, sửa, xóa, tìm kiếm tức thời, phân loại danh mục và đánh dấu yêu thích.
+- **Trường dữ liệu tùy biến**: Thêm trường văn bản, mật khẩu phụ, hoặc import file nhỏ (tối đa 10KB).
+- **Lịch sử mật khẩu**: Lưu trữ 5 mật khẩu cũ gần nhất cho mỗi mục.
+- **Kiểm tra độ mạnh (Health Dashboard)**: Phân tích mật khẩu yếu, dùng lặp lại, hoặc quá 90 ngày chưa đổi.
+- **Trao đổi dữ liệu Offline**:
+  - Export/Import file sao lưu mã hóa `.vaultbak`.
+  - Quét mã QR mã hóa trực tiếp giữa Desktop và Mobile (xác thực bằng PIN 4 chữ số, giải mã AES-256-GCM trên RAM).
+
+---
+
+## Cài đặt & Phát triển
+
+### Yêu cầu
+- Node.js 18+
+- Rust 1.75+
+- Windows: Strawberry Perl (để biên dịch OpenSSL / SQLCipher)
+
+### Chạy chế độ Dev
 ```bash
 npm install
-```
-
-Chạy server dev:
-```bash
 npm run tauri dev
 ```
 
-Build file cài đặt:
+### Chạy Test
+```bash
+# Frontend tests (Vitest)
+npm test
+
+# Backend tests (Cargo)
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### Đóng gói ứng dụng
 ```bash
 npm run tauri build
 ```
