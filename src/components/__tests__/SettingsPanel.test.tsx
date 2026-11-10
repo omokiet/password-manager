@@ -44,7 +44,7 @@ describe('SettingsPanel Component', () => {
     fireEvent.click(submitBtn);
 
     expect(await screen.findByText('Mật khẩu mới phải từ 8 ký tự trở lên')).toBeInTheDocument();
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalledWith('change_master_password', expect.anything());
   });
 
   it('handles export backup successfully with user selected path', async () => {
@@ -107,6 +107,61 @@ describe('SettingsPanel Component', () => {
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith('delete_all_entries');
       expect(mockShowToast).toHaveBeenCalledWith('Đã xóa toàn bộ mật khẩu!');
+    });
+  });
+
+  it('renders Google Drive section and opens guide modal when clicking connect', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'gdrive_get_status') {
+        return Promise.resolve({ is_connected: false });
+      }
+      return Promise.resolve();
+    });
+
+    render(<SettingsPanel onBack={mockOnBack} onHome={mockOnHome} showToast={mockShowToast} />);
+
+    expect(await screen.findByText('Sao lưu Đám mây (Google Drive)')).toBeInTheDocument();
+    expect(screen.getByText('Chưa kết nối')).toBeInTheDocument();
+
+    const connectBtn = screen.getByRole('button', { name: /kết nối google drive/i });
+    await userEvent.click(connectBtn);
+
+    expect(screen.getByText('Hướng dẫn xác thực Google Drive')).toBeInTheDocument();
+    expect(screen.getByText(/Ứng dụng chưa xác minh/i)).toBeInTheDocument();
+  });
+
+  it('triggers cloud backup when connected and updates list', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'gdrive_get_status') {
+        return Promise.resolve({ is_connected: true, connected_at: 1700000000 });
+      }
+      if (cmd === 'gdrive_list_backups') {
+        return Promise.resolve([
+          {
+            id: 'cloud_file_1',
+            name: 'vault_backup_20261110_120000.vaultbak',
+            size: 45056,
+            created_time: '2026-11-10T12:00:00.000Z',
+          },
+        ]);
+      }
+      if (cmd === 'gdrive_upload_backup') {
+        return Promise.resolve('new_file_id');
+      }
+      return Promise.resolve();
+    });
+
+    render(<SettingsPanel onBack={mockOnBack} onHome={mockOnHome} showToast={mockShowToast} />);
+
+    expect(await screen.findByText('Đã kết nối')).toBeInTheDocument();
+    expect(await screen.findByText('vault_backup_20261110_120000.vaultbak')).toBeInTheDocument();
+
+    const backupBtn = screen.getByRole('button', { name: /sao lưu ngay lên google drive/i });
+    await userEvent.click(backupBtn);
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith('gdrive_upload_backup');
+      expect(mockShowToast).toHaveBeenCalledWith('Đã sao lưu lên Google Drive thành công!');
     });
   });
 });

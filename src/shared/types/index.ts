@@ -26,3 +26,16 @@ export interface PasswordHistoryEntry {
   old_password: string;
   changed_at: number;
 }
+
+export interface CloudBackupItem {
+  id: string;
+  name: string;
+  size?: number;
+  created_time: string;
+}
+
+export interface GDriveStatusResponse {
+  is_connected: boolean;
+  connected_at?: number;
+  client_id?: string;
+}
