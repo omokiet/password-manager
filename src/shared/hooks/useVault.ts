@@ -104,9 +104,11 @@ export function useVault({ onLock }: UseVaultOptions) {
 
     try {
       if (selectedEntry.id) {
-        await invoke('update_entry', { entry: selectedEntry });
+        const updated = await invoke<PasswordEntry>('update_entry', { entry: selectedEntry });
+        setSelectedEntry(updated);
       } else {
-        await invoke('add_entry', { entry: selectedEntry });
+        const saved = await invoke<PasswordEntry>('add_entry', { entry: selectedEntry });
+        setSelectedEntry(saved);
       }
       setIsEditing(false);
       await loadEntries();
